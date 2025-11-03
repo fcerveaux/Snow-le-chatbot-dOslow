@@ -128,8 +128,9 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
   </footer>
 
   <script type="module">
-    // Étape 2 (corrigée) : chargement manuel + indicateur clair + modèle au choix.
-    import { CreateWebWorkerMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+    // Étape 2 (fix) : utiliser CreateMLCEngine (sans WebWorker) pour éviter l'erreur postMessage.
+    // Docs: https://webllm.mlc.ai/docs/user/basic_usage.html
+    import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
 
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
@@ -161,8 +162,8 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       progress.textContent = "Préparation…";
       try{
         const model = modelSelect.value;
-        engine = await CreateWebWorkerMLCEngine(
-          { model },
+        engine = await CreateMLCEngine(
+          model,
           { initProgressCallback: (p) => { progress.textContent = p.text || "…"; } }
         );
         progress.textContent = "Snow est prêt. Pose une question.";
