@@ -46,7 +46,7 @@
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">Chat local en français, fondé sur votre document. Aucune donnée n'est stockée.</div>
+        <div class="subtitle">Chatbot d'OSLOW</div>
       </div>
     </div>
   </header>
@@ -120,8 +120,75 @@
       return Array.from(scores.map((s,i)=>({i,s}))).sort((a,b)=>b.s-a.s).slice(0,4);
     }
 
-    // === Couche règles (interprétation stricte du corpus) ===
-    let unknownStreak = 0;
+    // === LLM local (chargé silencieusement) ===
+    let engine=null; let llmReady=false; let triedLLM=false;
+    async function ensureLLM(){
+      if(triedLLM) return; triedLLM=true;
+      try{
+        const { CreateMLCEngine, prebuiltAppConfig } = await import('https://esm.run/@mlc-ai/web-llm');
+        // Privilégie Qwen (meilleur FR) si dispo, sinon TinyLlama
+        const preferred = ['Qwen2.5-1.5B-Instruct-q4f16_1-MLC','TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC'];
+        const list = (prebuiltAppConfig?.model_list||[]).map(m=>m.model_id);
+        const wanted = preferred.find(id=>list.includes(id)) || list[0];
+        if(!wanted) throw 0;
+        engine = await CreateMLCEngine(wanted, { initProgressCallback:(p)=>{ statusEl.textContent = p.text || '…'; } });
+        llmReady=true; statusEl.textContent='Prêt.';
+      }catch{ llmReady=false; /* fallback silencieux */ }
+    }
+
+    function extractQuoted(s){
+      const m = s.match(/["“”«»](.*?)["“”«»]/);
+      return m ? m[1].trim() : null;
+    }
+
+    async function llmAnswer(question, hits){
+      const ctx = hits.map(h=>docs[h.i]).join('\n---\n');
+      const quote = extractQuoted(ctx);
+      const sys = `Tu es Snow, un petit chat FRANÇAIS. Réponds UNIQUEMENT à partir des extraits fournis. Ne montre JAMAIS les extraits ni les sources. Si un extrait contient une réplique entre guillemets, répète-la exactement. Sinon, reformule en 1 à 2 phrases claires en français. Si l'information manque, dis : "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
+      const promptUser = `Question: ${question}\n\nEXTRAITS (confidentiels):\n${ctx}`;
+      const params = { messages:[{role:'system',content:sys},{role:'user',content:promptUser}], temperature:0.15, top_p:0.9, stream:true };
+      const stream = await engine.chat.completions.create(params);
+      let out=''; for await (const c of stream){ const t=c?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
+      out = out.trim();
+      if(!out && quote) return quote; // secours
+      return out;
+    }
+
+    function fallbackParaphrase(hits){
+      if(!hits.length) return null;
+      const s = hits.map(h=>docs[h.i]).join(' \n ');
+      const quoted = extractQuoted(s);
+      if(quoted) return quoted; // copier uniquement les répliques entre guillemets
+      const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>25);
+      const cleaned = sentences.map(x=>x.replace(/[“”«»\"]/g,'')).join(' ');
+      return cleaned.split(/\s+/).slice(0,60).join(' ').trim();
+    }
+
+    async function answer(question){
+      // 1) Règles directes
+      const direct = ruleAnswer(question);
+      if(direct) return direct;
+
+      // 2) Recherche
+      const hits = scoreQuery(question);
+      const low = !hits.length || (hits[0]?.s||0) < 0.07; // seuil un peu plus haut pour éviter mauvais appariements
+      if(low){
+        // séquence hors sujet
+        window.__unk = (window.__unk||0)+1;
+        if(window.__unk===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
+        if(window.__unk===2) return "Encore une fois, je ne peux malheureusement pas vous répondre…";
+        return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
+      }
+
+      // 3) LLM silencieux si possible
+      await ensureLLM();
+      if(llmReady && engine){ return await llmAnswer(question, hits); }
+
+      // 4) Fallback paraphrase courte (FR)
+      return fallbackParaphrase(hits) || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
+    }
+
+    // Couche règles (extraits compressés en intents)
     function ruleAnswer(q){
       const s = q.normalize('NFD').toLowerCase();
       const has = (...xs)=>xs.some(x=>s.includes(x));
@@ -172,66 +239,6 @@
       if (has('recherche internet','chercher sur internet','google','faire une recherche'))
         return "Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez.";
       return null;
-    }
-
-    // === LLM local (optionnel, chargé en silence à la première question) ===
-    let engine=null; let llmReady=false; let triedLLM=false;
-    async function ensureLLM(){
-      if(triedLLM) return; triedLLM=true; // une seule tentative, discrète
-      try{
-        const { CreateMLCEngine, prebuiltAppConfig } = await import('https://esm.run/@mlc-ai/web-llm');
-        const wanted = 'TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC';
-        const ok = (prebuiltAppConfig?.model_list||[]).some(m=>m.model_id===wanted);
-        if(!ok) throw 0;
-        engine = await CreateMLCEngine(wanted, { initProgressCallback:(p)=>{ statusEl.textContent = p.text || '…'; } });
-        llmReady=true; statusEl.textContent='Prêt.';
-      }catch{ llmReady=false; /* reste en fallback, pas d'UI */ }
-    }
-
-    async function llmAnswer(question, hits){
-      const ctx = hits.map(h=>docs[h.i]).join('\n---\n');
-      const sys = `Tu es Snow, un petit chat FRANÇAIS. Réponds UNIQUEMENT à partir des extraits fournis. Ne montre JAMAIS les extraits ni les sources. Si un extrait contient une réplique entre guillemets, répète-la exactement. Sinon, reformule en 1 à 2 phrases claires en français. Si l'information manque, dis : "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
-      const promptUser = `Question: ${question}\n\nEXTRAITS (confidentiels):\n${ctx}`;
-      const stream = await engine.chat.completions.create({
-        messages:[{role:'system',content:sys},{role:'user',content:promptUser}],
-        temperature:0.2, stream:true
-      });
-      let out=''; for await (const c of stream){ const t=c?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
-      return out.trim();
-    }
-
-    function fallbackParaphrase(hits){
-      // Paraphrase courte sans jamais coller un extrait complet
-      if(!hits.length) return null;
-      const s = hits.map(h=>docs[h.i]).join(' \n ');
-      const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>25);
-      // Enlever les guillemets pour éviter les citations complètes
-      const cleaned = sentences.map(x=>x.replace(/[“”«»\"]/g,'')).join(' ');
-      return cleaned.split(/\s+/).slice(0,60).join(' ').trim(); // ~60 mots max
-    }
-
-    async function answer(question){
-      // 0) Règles directes
-      const direct = ruleAnswer(question);
-      if(direct){ unknownStreak=0; return direct; }
-
-      // 1) Recherche
-      const hits = scoreQuery(question);
-      const low = !hits.length || (hits[0]?.s||0) < 0.05;
-      if(low){
-        unknownStreak++;
-        if(unknownStreak===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
-        if(unknownStreak===2) return "Encore une fois, je ne peux malheureusement pas vous répondre…";
-        return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
-      }
-
-      // 2) LLM silencieux si possible
-      await ensureLLM();
-      if(llmReady && engine){ unknownStreak=0; return await llmAnswer(question, hits); }
-
-      // 3) Fallback paraphrase courte (FR)
-      unknownStreak=0;
-      return fallbackParaphrase(hits) || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
     }
 
     form.addEventListener('submit', async (e)=>{
