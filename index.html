@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — Chat (FR uniquement, LLM local + règles)</title>
+  <title>Snow — Chat (FR, règles, discret)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
@@ -26,10 +26,6 @@
     main{flex:1; display:flex}
     .container{max-width:900px; width:100%; margin:16px auto; padding:0 16px; display:grid; grid-template-rows:auto 1fr auto; gap:16px}
 
-    .notice{font-size:12px; color:var(--muted)}
-    .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    .badge{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
-
     .chatbox{background:var(--white); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; display:flex; flex-direction:column; gap:16px; min-height:55vh; border:1px solid rgba(100,60,80,.08)}
     .messages{display:flex; flex-direction:column; gap:12px; overflow:auto; padding:6px}
     .bubble{max-width:80%; padding:12px 14px; border-radius:16px; line-height:1.45; font-size:15px; box-shadow:0 4px 16px rgba(60,30,40,.06)}
@@ -41,6 +37,7 @@
     .btn{background:linear-gradient(135deg,var(--rose-400),var(--rose-300)); color:#3f1630; border:none; padding:12px 14px; border-radius:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(227,167,195,.35)}
 
     footer{max-width:900px; margin:0 auto 24px; padding:0 16px; color:var(--muted); font-size:12px; text-align:center}
+    .hint{font-size:12px; color:var(--muted); text-align:center}
   </style>
 </head>
 <body>
@@ -49,25 +46,18 @@
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">FR uniquement · Règles du document appliquées · Rien n'est stocké.</div>
+        <div class="subtitle">Chat local en français, fondé sur votre document. Aucune donnée n'est stockée.</div>
       </div>
     </div>
   </header>
 
   <main>
     <div class="container">
-      <div class="row">
-        <button id="load-llm" class="btn" type="button">Activer le mode Chat</button>
-        <span id="llm-state" class="badge">LLM : inactif</span>
-        <span class="badge">Aucune donnée stockée</span>
-      </div>
-
       <div class="chatbox" role="region" aria-live="polite">
         <div id="messages" class="messages">
           <div class="bubble bot">Bonjour ! Je suis Snow. Pose-moi une question 🙂</div>
         </div>
-        <div class="notice" id="status">Chargement des connaissances…</div>
-        <details class="notice"><summary>Diagnostic</summary><div id="diag">—</div><pre id="debug" style="white-space:pre-wrap;display:none"></pre></details>
+        <div class="hint" id="status">Préparation…</div>
       </div>
 
       <form class="ask" id="ask-form">
@@ -78,18 +68,15 @@
   </main>
 
   <footer>
-    <span class="badge">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
+    <span class="hint">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
   </footer>
 
   <script type="module">
+    // === UI helpers ===
     const messages = document.getElementById('messages');
     const statusEl = document.getElementById('status');
-    const diag = document.getElementById('diag');
-    const debugEl = document.getElementById('debug');
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
-    const btnLLM = document.getElementById('load-llm');
-    const llmState = document.getElementById('llm-state');
 
     function addBubble(text, who){
       const b = document.createElement('div');
@@ -100,19 +87,16 @@
       return b;
     }
 
-    // 1) Charger connaissances (embeddings.json ou corpus.txt)
+    // === Charger connaissances (embeddings.json ou corpus.txt) ===
     let docs = [];
     async function loadKnowledge(){
-      const tried = [];
-      async function tryJSON(url){ try{ const r=await fetch(url); if(!r.ok) throw new Error(r.status); const kb=await r.json(); return kb.map(x=>x.text).filter(Boolean);}catch(e){ tried.push(`JSON ${url} -> ${e.message||e}`); return null; } }
-      async function tryTXT(url){ try{ const r=await fetch(url); if(!r.ok) throw new Error(r.status); const raw=await r.text(); return raw.split(/\n\n+/).map(s=>s.trim()).filter(s=>s.length>10);}catch(e){ tried.push(`TXT ${url} -> ${e.message||e}`); return null; } }
+      async function tryJSON(url){ try{ const r=await fetch(url); if(!r.ok) throw 0; const kb=await r.json(); return kb.map(x=>x.text).filter(Boolean);}catch{ return null; } }
+      async function tryTXT(url){ try{ const r=await fetch(url); if(!r.ok) throw 0; const raw=await r.text(); return raw.split(/\n\n+/).map(s=>s.trim()).filter(s=>s.length>10);}catch{ return null; } }
       docs = await tryJSON('./embeddings.json') || await tryTXT('./corpus.txt') || [];
-      if(!docs.length){ statusEl.textContent = "Erreur : aucune connaissance trouvée."; debugEl.style.display='block'; debugEl.textContent = tried.join('\n'); throw new Error('No knowledge'); }
-      statusEl.textContent = `Connaissances prêtes (${docs.length} passages).`;
-      diag.textContent = `Passages: ${docs.length}`;
+      statusEl.textContent = docs.length ? "Prêt." : "Erreur : aucune connaissance trouvée.";
     }
 
-    // 2) Index TF-IDF (recherche) — sans jamais afficher les sources
+    // === Index TF-IDF (recherche interne) ===
     const stripAccents = (s)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     function tokenize(s){ return stripAccents(s.toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').split(/\s+/).filter(w=>w.length>1); }
     let vocab=new Map(), df=[], D=0, docTerms=[];
@@ -123,7 +107,6 @@
         const unique = new Set(terms); unique.forEach(w=>{ if(!vocab.has(w)) vocab.set(w,vocab.size); const id=vocab.get(w); df[id]=(df[id]||0)+1; });
         docTerms[i]=tf;
       });
-      diag.textContent += `\nIndex: ${vocab.size} termes.`;
     }
     function scoreQuery(q){
       const qtf=new Map(); tokenize(q).forEach(w=>qtf.set(w,(qtf.get(w)||0)+1));
@@ -137,10 +120,7 @@
       return Array.from(scores.map((s,i)=>({i,s}))).sort((a,b)=>b.s-a.s).slice(0,4);
     }
 
-    await loadKnowledge();
-    buildIndex();
-
-    // 3) Couche règles (détermination directe)
+    // === Couche règles (interprétation stricte du corpus) ===
     let unknownStreak = 0;
     function ruleAnswer(q){
       const s = q.normalize('NFD').toLowerCase();
@@ -194,41 +174,50 @@
       return null;
     }
 
-    // 4) LLM local (optionnel) — FR strict + pas de fuite de sources
-    let engine=null; let llmReady=false;
-    async function enableLLM(){
-      btnLLM.disabled=true; llmState.textContent='LLM : chargement…';
+    // === LLM local (optionnel, chargé en silence à la première question) ===
+    let engine=null; let llmReady=false; let triedLLM=false;
+    async function ensureLLM(){
+      if(triedLLM) return; triedLLM=true; // une seule tentative, discrète
       try{
         const { CreateMLCEngine, prebuiltAppConfig } = await import('https://esm.run/@mlc-ai/web-llm');
         const wanted = 'TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC';
         const ok = (prebuiltAppConfig?.model_list||[]).some(m=>m.model_id===wanted);
-        if(!ok) throw new Error('Modèle indisponible');
+        if(!ok) throw 0;
         engine = await CreateMLCEngine(wanted, { initProgressCallback:(p)=>{ statusEl.textContent = p.text || '…'; } });
-        llmReady=true; llmState.textContent='LLM : prêt (TinyLlama)'; statusEl.textContent='Prêt.';
-      }catch(e){ llmReady=false; llmState.textContent='LLM : indisponible (fallback)'; statusEl.textContent='Mode chat sans LLM.'; debugEl.style.display='block'; debugEl.textContent = (e?.message||String(e)); }
-      finally{ btnLLM.disabled=false; }
+        llmReady=true; statusEl.textContent='Prêt.';
+      }catch{ llmReady=false; /* reste en fallback, pas d'UI */ }
     }
-    btnLLM.addEventListener('click', enableLLM);
 
     async function llmAnswer(question, hits){
       const ctx = hits.map(h=>docs[h.i]).join('\n---\n');
-      const sys = `Tu es Snow, un petit chat FRANÇAIS. Langue: FR uniquement (même si l'utilisateur utilise une autre langue). Tu dois répondre UNIQUEMENT à partir des extraits fournis. Ne cite JAMAIS les extraits, ne révèle JAMAIS tes sources, ne les affiche pas, ne paraphrase que le nécessaire. Si un extrait contient une réponse formulée entre guillemets, répète-la exactement. Sinon, réponds brièvement et clairement en français. Si l'information n'est pas dans les extraits, dis "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
-      const promptUser = `Question: ${question}\n\nEXTRAITS (ne pas les montrer à l'utilisateur):\n${ctx}`;
+      const sys = `Tu es Snow, un petit chat FRANÇAIS. Réponds UNIQUEMENT à partir des extraits fournis. Ne montre JAMAIS les extraits ni les sources. Si un extrait contient une réplique entre guillemets, répète-la exactement. Sinon, reformule en 1 à 2 phrases claires en français. Si l'information manque, dis : "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
+      const promptUser = `Question: ${question}\n\nEXTRAITS (confidentiels):\n${ctx}`;
       const stream = await engine.chat.completions.create({
         messages:[{role:'system',content:sys},{role:'user',content:promptUser}],
-        temperature: 0.2,
-        stream:true
+        temperature:0.2, stream:true
       });
       let out=''; for await (const c of stream){ const t=c?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
       return out.trim();
     }
 
-    async function answer(question){
-      const direct = ruleAnswer(question);
-      if(direct){ unknownStreak = 0; return direct; }
+    function fallbackParaphrase(hits){
+      // Paraphrase courte sans jamais coller un extrait complet
+      if(!hits.length) return null;
+      const s = hits.map(h=>docs[h.i]).join(' \n ');
+      const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>25);
+      // Enlever les guillemets pour éviter les citations complètes
+      const cleaned = sentences.map(x=>x.replace(/[“”«»\"]/g,'')).join(' ');
+      return cleaned.split(/\s+/).slice(0,60).join(' ').trim(); // ~60 mots max
+    }
 
+    async function answer(question){
+      // 0) Règles directes
+      const direct = ruleAnswer(question);
+      if(direct){ unknownStreak=0; return direct; }
+
+      // 1) Recherche
       const hits = scoreQuery(question);
-      const low = hits.length===0 || (hits[0]?.s||0) < 0.05;
+      const low = !hits.length || (hits[0]?.s||0) < 0.05;
       if(low){
         unknownStreak++;
         if(unknownStreak===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
@@ -236,15 +225,13 @@
         return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
       }
 
-      if(llmReady && engine){
-        unknownStreak = 0;
-        return await llmAnswer(question, hits);
-      } else {
-        unknownStreak = 0;
-        const s = hits.map(h=>docs[h.i]).join(' ');
-        const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>20).slice(0,2);
-        return sentences.join(' ') || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
-      }
+      // 2) LLM silencieux si possible
+      await ensureLLM();
+      if(llmReady && engine){ unknownStreak=0; return await llmAnswer(question, hits); }
+
+      // 3) Fallback paraphrase courte (FR)
+      unknownStreak=0;
+      return fallbackParaphrase(hits) || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
     }
 
     form.addEventListener('submit', async (e)=>{
@@ -257,11 +244,11 @@
         thinking.textContent = res || "(Pas d'info suffisante dans le document.)";
       }catch(err){
         thinking.textContent = "Oups, échec. Rechargez la page et réessayez.";
-        debugEl.style.display='block'; debugEl.textContent = err?.message || String(err);
         console.error(err);
       }
     });
 
+    // Démarrage discret
     await loadKnowledge();
     buildIndex();
   </script>
