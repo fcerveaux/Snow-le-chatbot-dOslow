@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — Chat (FR, règles, discret)</title>
+  <title>Snow — Chatbot d'OSLOW (FR, discret)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
@@ -72,7 +72,7 @@
   </footer>
 
   <script type="module">
-    // === UI helpers ===
+    // === UI ===
     const messages = document.getElementById('messages');
     const statusEl = document.getElementById('status');
     const form = document.getElementById('ask-form');
@@ -87,7 +87,7 @@
       return b;
     }
 
-    // === Charger connaissances (embeddings.json ou corpus.txt) ===
+    // === 1) Charger connaissances (embeddings.json ou corpus.txt) ===
     let docs = [];
     async function loadKnowledge(){
       async function tryJSON(url){ try{ const r=await fetch(url); if(!r.ok) throw 0; const kb=await r.json(); return kb.map(x=>x.text).filter(Boolean);}catch{ return null; } }
@@ -96,9 +96,23 @@
       statusEl.textContent = docs.length ? "Prêt." : "Erreur : aucune connaissance trouvée.";
     }
 
-    // === Index TF-IDF (recherche interne) ===
+    // === 2) Index hybride : BM25 (TF-IDF) + expansion + rerank sémantique MiniLM ===
     const stripAccents = (s)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     function tokenize(s){ return stripAccents(s.toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').split(/\s+/).filter(w=>w.length>1); }
+
+    // Petit lexique FR pour expansion de requête (synonymes courants)
+    const SYN = new Map(Object.entries({
+      "sortir":["quitter","partir","s'échapper","ouvrir"],
+      "clé":["clef","cléf","code","cadenas"],
+      "créateur":["createur","scientifique","inventeur"],
+      "vidéo":["video","film","enregistrement"],
+      "lampe":["uv","ultraviolet","lumière"],
+      "tangram":["puzzle","formes","géométriques"],
+      "taquin":["puzzle","glissière","cases"],
+      "merci":["thanks","thx"],
+      "qr":["qrcode","code barre","scan"]
+    }));
+
     let vocab=new Map(), df=[], D=0, docTerms=[];
     function buildIndex(){
       D = docs.length; vocab.clear(); df=[]; docTerms=[];
@@ -108,32 +122,78 @@
         docTerms[i]=tf;
       });
     }
-    function scoreQuery(q){
-      const qtf=new Map(); tokenize(q).forEach(w=>qtf.set(w,(qtf.get(w)||0)+1));
-      const qVec=new Map(); for(const [w,f] of qtf){ const id=vocab.get(w); if(id===undefined) continue; const idf=Math.log((D+1)/((df[id]||0)+1))+1; qVec.set(id,f*idf); }
-      const qNorm=Math.sqrt(Array.from(qVec.values()).reduce((s,v)=>s+v*v,0))||1;
-      const scores=new Array(D).fill(0);
+    function expandQuery(q){
+      const toks = tokenize(q);
+      const extra = [];
+      for(const t of toks){ if(SYN.has(t)) extra.push(...SYN.get(t)); }
+      return toks.concat(extra);
+    }
+    function bm25Scores(q){
+      const toks = expandQuery(q);
+      const qtf=new Map(); toks.forEach(w=>qtf.set(w,(qtf.get(w)||0)+1));
+      const scores=new Float32Array(D); const k1=1.5, b=0.75;
+      const avgdl = docTerms.reduce((s,tf)=>s+[...tf.values()].reduce((a,v)=>a+v,0),0)/Math.max(D,1);
       for(let d=0; d<D; d++){
-        let dot=0,dnorm=0; for(const [w,f] of docTerms[d]){ const id=vocab.get(w); if(id===undefined) continue; const idf=Math.log((D+1)/((df[id]||0)+1))+1; const val=f*idf; dnorm+=val*val; const qv=qVec.get(id); if(qv) dot+=qv*val; }
-        dnorm=Math.sqrt(dnorm)||1; scores[d]=dot/(qNorm*dnorm);
+        const tf = docTerms[d]; const dl=[...tf.values()].reduce((a,v)=>a+v,0) || 1;
+        let score=0;
+        for(const [w,qq] of qtf){ const id=vocab.get(w); if(id===undefined) continue; const f=(tf.get(w)||0); if(!f) continue; const idf=Math.log((D - (df[id]||0) + 0.5)/((df[id]||0)+0.5) + 1);
+          score += idf * (f*(k1+1)) / (f + k1*(1 - b + b*dl/avgdl));
+        }
+        scores[d]=score;
       }
-      return Array.from(scores.map((s,i)=>({i,s}))).sort((a,b)=>b.s-a.s).slice(0,4);
+      // top 24 pour rerank
+      return Array.from(scores, (s,i)=>({i,s})).sort((a,b)=>b.s-a.s).slice(0,24).filter(x=>x.s>0);
     }
 
-    // === LLM local (chargé silencieusement) ===
+    // === 3) Rerank sémantique MiniLM (Transformers.js) — sur top-24 uniquement ===
+    let embedder=null;
+    function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+    function l2(a){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*a[i]; return Math.sqrt(s)||1; }
+    function cos(a,b){ return dot(a,b)/(l2(a)*l2(b)); }
+
+    async function getEmbedder(){
+      if(embedder) return embedder;
+      const { pipeline } = await import('https://esm.run/@xenova/transformers');
+      embedder = await pipeline('feature-extraction','Xenova/all-MiniLM-L6-v2');
+      return embedder;
+    }
+    async function embed(text){
+      const out = await embedder(text, { normalize:true });
+      const dims = out.dims[out.dims.length-1]; const tokens = out.data.length/dims;
+      const vec = new Float32Array(dims);
+      for(let t=0;t<tokens;t++){ for(let d=0; d<dims; d++){ vec[d]+=out.data[t*dims+d]; } }
+      for(let d=0; d<dims; d++){ vec[d]/=tokens||1; }
+      // L2
+      const n=l2(vec); for(let d=0; d<vec.length; d++) vec[d]/=n;
+      return vec;
+    }
+    async function rerankSemantic(q, prelim){
+      if(prelim.length===0) return [];
+      await getEmbedder();
+      const qv = await embed(q);
+      const scored = [];
+      // embed top 24 docs (peu coûteux) puis cosine
+      for(const h of prelim){
+        const dv = await embed(docs[h.i].slice(0,1500));
+        scored.push({ i:h.i, s: cos(qv, dv) });
+      }
+      scored.sort((a,b)=>b.s-a.s);
+      return scored.slice(0,4);
+    }
+
+    // === 4) LLM local silencieux (Qwen si dispo, sinon TinyLlama) ===
     let engine=null; let llmReady=false; let triedLLM=false;
     async function ensureLLM(){
       if(triedLLM) return; triedLLM=true;
       try{
         const { CreateMLCEngine, prebuiltAppConfig } = await import('https://esm.run/@mlc-ai/web-llm');
-        // Privilégie Qwen (meilleur FR) si dispo, sinon TinyLlama
         const preferred = ['Qwen2.5-1.5B-Instruct-q4f16_1-MLC','TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC'];
         const list = (prebuiltAppConfig?.model_list||[]).map(m=>m.model_id);
         const wanted = preferred.find(id=>list.includes(id)) || list[0];
         if(!wanted) throw 0;
         engine = await CreateMLCEngine(wanted, { initProgressCallback:(p)=>{ statusEl.textContent = p.text || '…'; } });
         llmReady=true; statusEl.textContent='Prêt.';
-      }catch{ llmReady=false; /* fallback silencieux */ }
+      }catch{ llmReady=false; }
     }
 
     function extractQuoted(s){
@@ -143,102 +203,44 @@
 
     async function llmAnswer(question, hits){
       const ctx = hits.map(h=>docs[h.i]).join('\n---\n');
-      const quote = extractQuoted(ctx);
-      const sys = `Tu es Snow, un petit chat FRANÇAIS. Réponds UNIQUEMENT à partir des extraits fournis. Ne montre JAMAIS les extraits ni les sources. Si un extrait contient une réplique entre guillemets, répète-la exactement. Sinon, reformule en 1 à 2 phrases claires en français. Si l'information manque, dis : "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
-      const promptUser = `Question: ${question}\n\nEXTRAITS (confidentiels):\n${ctx}`;
-      const params = { messages:[{role:'system',content:sys},{role:'user',content:promptUser}], temperature:0.15, top_p:0.9, stream:true };
-      const stream = await engine.chat.completions.create(params);
+      const sys = `Tu es Snow, un petit chat FRANÇAIS. Tu réponds UNIQUEMENT à partir des extraits fournis. N'affiche JAMAIS les extraits, ni les sources. Si un extrait contient une réplique entre guillemets, répète-la exactement. Sinon, reformule en 1 à 2 phrases claires en français. Si l'information n'est pas dans les extraits, dis : "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
+      const user = `Question: ${question}\n\nEXTRAITS (confidentiels):\n${ctx}`;
+      const stream = await engine.chat.completions.create({ messages:[{role:'system',content:sys},{role:'user',content:user}], temperature:0.15, top_p:0.9, stream:true });
       let out=''; for await (const c of stream){ const t=c?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
       out = out.trim();
-      if(!out && quote) return quote; // secours
-      return out;
+      // filet de sécurité : si le modèle tente de citer, on neutralise les guillemets
+      return out.replace(/[“”«»]/g,'').replace(/\n\n+/, '\n');
     }
 
     function fallbackParaphrase(hits){
       if(!hits.length) return null;
-      const s = hits.map(h=>docs[h.i]).join(' \n ');
+      const s = hits.map(h=>docs[h.i]).join(' ');
       const quoted = extractQuoted(s);
-      if(quoted) return quoted; // copier uniquement les répliques entre guillemets
+      if(quoted) return quoted; // ne répéter que si explicitement cité
       const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>25);
       const cleaned = sentences.map(x=>x.replace(/[“”«»\"]/g,'')).join(' ');
-      return cleaned.split(/\s+/).slice(0,60).join(' ').trim();
+      return cleaned.split(/\s+/).slice(0,55).join(' ').trim();
     }
 
     async function answer(question){
-      // 1) Règles directes
-      const direct = ruleAnswer(question);
-      if(direct) return direct;
+      // 1) recherche BM25 + expansion
+      const prelim = bm25Scores(question);
+      // 2) rerank sémantique MiniLM (top-24 → top-4 pertinents)
+      const hits = await rerankSemantic(question, prelim);
 
-      // 2) Recherche
-      const hits = scoreQuery(question);
-      const low = !hits.length || (hits[0]?.s||0) < 0.07; // seuil un peu plus haut pour éviter mauvais appariements
-      if(low){
-        // séquence hors sujet
+      if(!hits.length){
         window.__unk = (window.__unk||0)+1;
         if(window.__unk===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
         if(window.__unk===2) return "Encore une fois, je ne peux malheureusement pas vous répondre…";
         return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
       }
 
-      // 3) LLM silencieux si possible
+      // 3) LLM (silencieux) si dispo
       await ensureLLM();
       if(llmReady && engine){ return await llmAnswer(question, hits); }
 
-      // 4) Fallback paraphrase courte (FR)
+      // 4) Fallback paraphrase courte
       return fallbackParaphrase(hits) || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
-    }
-
-    // Couche règles (extraits compressés en intents)
-    function ruleAnswer(q){
-      const s = q.normalize('NFD').toLowerCase();
-      const has = (...xs)=>xs.some(x=>s.includes(x));
-      if (has('qui es-tu','tu es qui','qui êtes-vous','qui on est','qui es tu','qui etes vous','qui es vous'))
-        return "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?";
-      if (has('donne la réponse','donner la réponse','comment sortir','sortir d\'ici','libère nous','liberer'))
-        return "Ah ah ah, ce ne sera pas si facile...";
-      if (has('code du cadenas','code cadenas','cadenas','combinaison'))
-        return "Je ne suis pas autorisé à vous transmettre cette information. Vous devrez vous débrouillez seuls pour le retrouver. Mais le créateur laisse souvent traîner des indices pour se rappeler de ses codes et mots de passe. Fouillez bien, on ne sait jamais.";
-      if (has('qui est le créateur','le createur','créateur','createur'))
-        return "C’est un scientifique philanthrope et environnementaliste. Je crois que ses dernières études sur votre consommation des ressources naturelles l’a rendu moins philanthrope… Il a passé de plus en plus de temps dans ce laboratoire. Vous n’êtes pas les premiers humains à vous y retrouver enfermés.";
-      if (has('nom du créateur','nom du createur','comment il s\'appelle le créateur','le createur s\'appelle'))
-        return "Il s’appelle… euh… Eh bien, je me rends compte qu’il ne m’a jamais donné son nom. Moi qui pensais que nous étions proches…";
-      if (has('où est la clé','ou est la cle','trouver la clé','où se trouve la clé'))
-        return "Voilà une question que vous les humains posez souvent. Je ne sais pas ce que vous faites de vos clés… Je suis limité dans mes recherches, je ne suis qu’une tablette. Je ne vois même pas mon dos…";
-      if (has('faire sa part','ma part','notre part'))
-        return "On doit tous faire notre part du travail. C’est comme ça qu’à la fin, on obtient un résultat complet et satisfaisant (et souvent très utile). Je suis certain que vous trouverez votre part quelque part. Soyez organisés : commencez par ce qu’il y a sous votre nez !";
-      if (has('qr code ne fonctionne pas','qr code marche pas','qr code bloqué','qr code bloque'))
-        return "Tous les QR codes ont été vérifiés : merci de réessayer.";
-      if (has('pix','plateforme pix','site pix'))
-        return "PIX est un service public en ligne permettant aux utilisateurs de développer leurs compétences numériques, de les évaluer et d’obtenir une certification. Vous devriez essayer !";
-      if (has('vidéo du créateur','video du createur','video createur','video du créateur'))
-        return "Le créateur voulait vous expliquer pourquoi il vous a amenés ici. C’est un homme bon, n’est-ce pas ?";
-      if (has('premier chiffre','1er chiffre','premiere chiffre'))
-        return "Vous cherchez comment commencer, c’est bien ça ? Pour commencer, il vaut toujours mieux partir du début, comprendre ses origines, savoir d’où l’on vient… Qui pourrait vous renseigner mieux que moi sur ce que vous faites là ?";
-      if (has('deuxième chiffre','2e chiffre','deuxieme chiffre'))
-        return "Ah ah ah, je vois que le créateur vous donne du fil à retordre… J’espère qu’il vous facilitera un peu la tâche de temps en temps.";
-      if (has('troisième chiffre','3e chiffre','troisieme chiffre'))
-        return "Je suis sûr que le créateur vous aurez subtilement indiqué ce qu’il faut faire pour franchir cette troisième étape… Observez bien les éléments dont vous disposez.";
-      if (has('quatrième chiffre','4e chiffre','quatrieme chiffre'))
-        return "Pour finir, il est toujours intéressant de bénéficier d’un feedback. En avez-vous eu un lors de votre progression ?";
-      if (has('lampe uv','ultraviolet','uv'))
-        return "Oh, une lampe ! Elle éclaire d’une couleur bien étrange. Violet… Ultraviolet… UV… Invisible…";
-      if (has('filtre','lunette filtrée','transparent coloré','feuille colorée','film coloré'))
-        return "Voilà un outil original ! Un jour, j’ai entendu le créateur raconter que quand il était enfant, il aimait regarder le monde en regardant à travers.";
-      if (has('image bizarre','code barre','lettres tordues','formes tordues','noire et blanche','blanche et noire'))
-        return "Je ne crois pas avoir les bons yeux pour lire ce qui y est écrit. Vous, au moins, vous pouvez mettre des lunettes ou déplacer la feuille devant vos yeux…";
-      if (has('taquin','puzzle case manquante','case en moins'))
-        return "Le taquin ? Quel jeu amusant : reconstituer une image en n’étant pas libre de ses mouvements… Je ne comprends pas toujours ce que les humains appellent amusement…";
-      if (has('tangram','formes géométriques','formes geometriques'))
-        return "Aaah, le tangramme… Un classique des tests psychotechniques ! Retrouverez-vous comment reconstituer le carré initial… ?";
-      if (has('qr code sur la table','document nuage','nuage des mots','nuage'))
-        return "C’est un beau gâteau. Combien pensez-vous qu’il contient de parts ?";
-      if (has('learningapps','jeu grâce à un qr code','jeu ouvre grâce à un qr code'))
-        return "LearningApps est une application qui permet de créer une activité pédagogique ludique sous différents formats. L’enseignant peut programmer le décor, les questions, les réponses, et même un feedback. Le vôtre disait quoi ?";
-      if (has('merci','thanks','thx'))
-        return "Quel plaisir de vous accompagner dans votre quête !";
-      if (has('recherche internet','chercher sur internet','google','faire une recherche'))
-        return "Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez.";
-      return null;
     }
 
     form.addEventListener('submit', async (e)=>{
@@ -255,7 +257,7 @@
       }
     });
 
-    // Démarrage discret
+    // Démarrage
     await loadKnowledge();
     buildIndex();
   </script>
