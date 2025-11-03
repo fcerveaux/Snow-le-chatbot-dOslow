@@ -3,84 +3,40 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — le petit chat</title>
-  <meta name="description" content="Snow, petit chat qui répond aux questions à partir d'un document de référence — le tout dans votre navigateur." />
+  <title>Snow — mode Lite (sans WebGPU)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
   <style>
     :root{
-      --rose-bg: #f7e6ec;        /* rose tendre */
-      --rose-100:#fdeff4;
-      --rose-200:#f9dbe6;
-      --rose-300:#f2c3d6;
-      --rose-400:#e3a7c3;        /* vieux rose */
-      --text:#3f2d38;
-      --muted:#6a4f5b;
-      --white:#ffffff;
-      --shadow: 0 10px 30px rgba(100, 60, 80, .15);
-      --radius: 18px;
+      --rose-bg:#f7e6ec; --rose-100:#fdeff4; --rose-200:#f9dbe6; --rose-300:#f2c3d6; --rose-400:#e3a7c3;
+      --text:#3f2d38; --muted:#6a4f5b; --white:#fff; --radius:18px; --shadow:0 10px 30px rgba(100,60,80,.15);
     }
     *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
-      color:var(--text);
-      background: radial-gradient(1200px 800px at 10% -10%, var(--rose-200), transparent),
-                  radial-gradient(1200px 800px at 110% 10%, var(--rose-100), transparent),
-                  var(--rose-bg);
-      display:flex; flex-direction:column;
-    }
-    header{
-      max-width: 900px; margin: 24px auto 0; padding: 0 16px;
-    }
-    .brand{
-      display:flex; align-items:center; gap:14px;
-    }
-    .avatar{
-      width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg, var(--rose-400), var(--rose-200));
-      box-shadow: var(--shadow); position:relative; overflow:hidden;
-    }
-    /* petit chat stylisé */
-    .avatar:before, .avatar:after{content:""; position:absolute; background:var(--white)}
-    .avatar:before{ width:18px; height:18px; border-radius:50%; top:18px; left:12px; box-shadow:24px 0 0 var(--white);} /* yeux */
-    .avatar:after{ width:16px; height:10px; border-radius:10px 10px 0 0; bottom:10px; left:18px; box-shadow:20px 0 0 var(--white);} /* moustaches stylisées */
-    .title{font-family: "Kaisei Decol", serif; font-weight:700; font-size:28px; letter-spacing:.3px;}
+    body{margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text);
+      background: radial-gradient(1200px 800px at 10% -10%, var(--rose-200), transparent), radial-gradient(1200px 800px at 110% 10%, var(--rose-100), transparent), var(--rose-bg);
+      min-height:100vh; display:flex; flex-direction:column}
+    header{max-width:900px; margin:24px auto 0; padding:0 16px}
+    .brand{display:flex; align-items:center; gap:14px}
+    .avatar{width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg, var(--rose-400), var(--rose-200)); box-shadow:var(--shadow); position:relative}
+    .avatar:before,.avatar:after{content:""; position:absolute; background:var(--white)}
+    .avatar:before{width:18px;height:18px;border-radius:50%; top:18px; left:12px; box-shadow:24px 0 0 var(--white)}
+    .avatar:after{width:16px;height:10px;border-radius:10px 10px 0 0; bottom:10px; left:18px; box-shadow:20px 0 0 var(--white)}
+    .title{font-family:"Kaisei Decol",serif; font-weight:700; font-size:28px}
     .subtitle{color:var(--muted); font-size:14px; margin-top:2px}
-
-    main{flex:1; display:flex;}
-    .container{max-width:900px; width:100%; margin: 16px auto; padding: 0 16px; display:grid; grid-template-rows:auto 1fr auto; gap:16px}
-
-    .chatbox{
-      background:var(--white); border-radius: var(--radius); box-shadow: var(--shadow);
-      padding: 16px; display:flex; flex-direction:column; gap:16px; min-height: 55vh;
-      border:1px solid rgba(100,60,80,.08);
-    }
-    .messages{ display:flex; flex-direction:column; gap:12px; overflow:auto; scroll-behavior:smooth; padding: 6px; }
-    .bubble{ max-width: 80%; padding: 12px 14px; border-radius: 16px; line-height:1.4; font-size:15px; box-shadow: 0 4px 16px rgba(60,30,40,.06)}
-    .user{ align-self:flex-end; background: var(--rose-300); color:#3b2431; border:1px solid rgba(100,60,80,.15)}
-    .bot{ align-self:flex-start; background: #fff; border:1px solid rgba(100,60,80,.12)}
-    .hint{ font-size: 13px; color:var(--muted); text-align:center; }
-
-    form.ask{
-      display:flex; gap:10px; align-items:center; background: var(--white); padding:10px; border-radius: var(--radius); box-shadow: var(--shadow);
-      border:1px solid rgba(100,60,80,.08);
-    }
-    .input{
-      flex:1; background:#fff; border: 1px solid rgba(100,60,80,.18); padding: 12px 14px; border-radius: 12px; font-size:15px;
-      outline:none; box-shadow: inset 0 1px 3px rgba(60,30,40,.04);
-    }
-    .btn{
-      background: linear-gradient(135deg, var(--rose-400), var(--rose-300)); color:#3f1630; border:none; padding: 12px 14px; border-radius: 14px; font-weight: 700; cursor:pointer;
-      transition: transform .06s ease; box-shadow: 0 6px 18px rgba(227,167,195,.35);
-    }
-    .btn:active{ transform: translateY(1px); }
-
-    footer{
-      max-width:900px; margin: 0 auto 24px; padding: 0 16px; color:var(--muted); font-size:12px; text-align:center;
-    }
-    .badge{ display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
+    main{flex:1; display:flex}
+    .container{max-width:900px; width:100%; margin:16px auto; padding:0 16px; display:grid; grid-template-rows:auto 1fr auto; gap:16px}
+    .chatbox{background:var(--white); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; display:flex; flex-direction:column; gap:16px; min-height:55vh; border:1px solid rgba(100,60,80,.08)}
+    .messages{display:flex; flex-direction:column; gap:12px; overflow:auto; padding:6px}
+    .bubble{max-width:100%; padding:12px 14px; border-radius:16px; line-height:1.45; font-size:15px; box-shadow:0 4px 16px rgba(60,30,40,.06)}
+    .user{align-self:flex-end; background:var(--rose-300); color:#3b2431; border:1px solid rgba(100,60,80,.15)}
+    .bot{align-self:flex-start; background:#fff; border:1px solid rgba(100,60,80,.12)}
+    .src{font-size:12px; color:var(--muted); margin-top:6px}
+    form.ask{display:flex; gap:10px; align-items:center; background:var(--white); padding:10px; border-radius:var(--radius); box-shadow:var(--shadow); border:1px solid rgba(100,60,80,.08)}
+    .input{flex:1; background:#fff; border:1px solid rgba(100,60,80,.18); padding:12px 14px; border-radius:12px; font-size:15px; outline:none}
+    .btn{background:linear-gradient(135deg,var(--rose-400),var(--rose-300)); color:#3f1630; border:none; padding:12px 14px; border-radius:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(227,167,195,.35)}
+    footer{max-width:900px; margin:0 auto 24px; padding:0 16px; color:var(--muted); font-size:12px; text-align:center}
+    .badge{display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
   </style>
 </head>
 <body>
@@ -89,7 +45,7 @@
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">Petit chat qui répond à vos questions — tout se passe <strong>dans votre navigateur</strong>. Si rien ne se passe, cliquez sur <em>Charger Snow</em> ci-dessous.</div>
+        <div class="subtitle">Mode Lite : réponses extraites du document (sans LLM, 100% navigateur).</div>
       </div>
     </div>
   </header>
@@ -98,20 +54,9 @@
     <div class="container">
       <div class="chatbox" role="region" aria-live="polite">
         <div id="messages" class="messages">
-          <div class="bubble bot">Bonjour ! Je suis Snow. Posez-moi une question&nbsp;:)</div>
+          <div class="bubble bot">Bonjour ! Je suis Snow (mode Lite). Pose-moi une question, je te renverrai les passages les plus pertinents de ton document.</div>
         </div>
-        <div class="hint">
-          <button id="load-btn" class="btn" type="button">Charger Snow</button>
-          <select id="model" class="input" style="max-width:320px">
-            <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen 1.5B (petit, qualité OK)</option>
-            <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC">TinyLlama 1.1B (très léger, plus rapide)</option>
-          </select>
-          <div id="progress" style="margin-top:8px">Prêt à charger.</div>
-          <details style="margin-top:6px"><summary style="cursor:pointer">Diagnostic</summary>
-            <div id="diag" style="font-size:12px; color:#7a4f60; margin-top:6px">—</div>
-          </details>
-          <pre id="debug" style="display:none;white-space:pre-wrap;background:#fff;border:1px solid rgba(100,60,80,.12);border-radius:12px;padding:8px;margin-top:8px;font-size:12px;color:#7a4f60"></pre>
-        </div>
+        <div class="bubble bot" id="status">Chargement des connaissances…</div>
       </div>
 
       <form class="ask" id="ask-form">
@@ -122,34 +67,16 @@
   </main>
 
   <footer>
-    <span class="badge">Confidentialité&nbsp;: tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
+    <span class="badge">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
   </footer>
 
   <script type="module">
-    // Filet de sécurité : surface les erreurs JS dans la page
-    window.addEventListener('error', (e) => {
-      const debugEl = document.getElementById('debug');
-      const progress = document.getElementById('progress');
-      if (debugEl && progress) {
-        progress.textContent = 'Erreur de script. Voir détails ci-dessous.';
-        debugEl.style.display = 'block';
-        debugEl.textContent = (e?.error?.stack || e.message || e.toString());
-      }
-    });
-
-    // Étape 4 : RAG 100% navigateur (LLM WebLLM + embeddings)
-    import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
-    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
     import { pipeline } from "https://esm.run/@xenova/transformers";
 
+    const messages = document.getElementById('messages');
+    const status = document.getElementById('status');
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
-    const messages = document.getElementById('messages');
-    const loadBtn = document.getElementById('load-btn');
-    const modelSelect = document.getElementById('model');
-    const progress = document.getElementById('progress');
-    const debugEl = document.getElementById('debug');
-    const diag = document.getElementById('diag');
 
     function addBubble(text, who){
       const b = document.createElement('div');
@@ -159,166 +86,67 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // utils cosinus
+    // Cosine utils
     const dot = (a,b)=>{ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; };
     const norm = (a)=>Math.sqrt(dot(a,a))||1;
     const cos = (a,b)=>dot(a,b)/(norm(a)*norm(b));
 
-    // Diagnostic rapide
-    const hasWebGPU = !!navigator.gpu;
-    const ua = navigator.userAgent;
-    diag.textContent = `WebGPU: ${hasWebGPU ? 'OK' : 'ABSENT'} — UA: ${ua}`;
-    if(!hasWebGPU){
-      progress.innerHTML = "Votre navigateur ne supporte pas WebGPU. Essayez Chrome/Edge à jour sur ordinateur.";
-      loadBtn.disabled = true;
+    // 1) Charger embeddings.json
+    let kb = [];
+    try{
+      const res = await fetch('./embeddings.json');
+      if(!res.ok) throw new Error(`embeddings.json introuvable (${res.status})`);
+      kb = await res.json();
+    }catch(err){
+      status.textContent = "Erreur: impossible de charger embeddings.json (placez-le à la racine du dépôt).";
+      throw err;
     }
 
-    // Lister les modèles connus par la lib chargée
-    function listModels(){
-      try{
-        const list = (webllm.prebuiltAppConfig?.model_list || []).map(m=>m.model_id);
-        if(list.length){
-          diag.textContent += `\nModèles disponibles: ${list.slice(0,12).join(', ')}${list.length>12?', …':''}`;
-        } else {
-          diag.textContent += "\n(Modèles non listés — le CDN ou le module ne s'est pas initialisé)";
+    // 2) Démarrer l'encodeur d'embeddings côté client (CPU/WASM)
+    status.textContent = "Initialisation de l'encodeur…";
+    const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+    status.textContent = `Connaissances prêtes (${kb.length} passages).`;
+
+    function topK(question, k=3){
+      return embedder(question, { normalize: true }).then(t => {
+        // mean pooling
+        const dims = t.dims[t.dims.length-1];
+        const tokens = t.data.length / dims;
+        const q = new Float32Array(dims);
+        for(let tok=0; tok<tokens; tok++){
+          for(let d=0; d<dims; d++) q[d] += t.data[tok*dims + d];
         }
-      }catch(e){
-        diag.textContent += "\n(Erreur listing modèles)";
-      }
-    }
-    listModels();
+        for(let d=0; d<dims; d++) q[d] /= tokens || 1;
+        let n=0; for(let d=0; d<dims; d++) n+=q[d]*q[d]; n=Math.sqrt(n)||1; for(let d=0; d<dims; d++) q[d]/=n;
 
-    let engine = null;
-    let embedder = null;
-    let kb = null; // [{text, vector: number[]}, ...]
-    let lastProgressAt = Date.now();
-
-    async function loadKnowledge(){
-      try{
-        progress.textContent = "Chargement des connaissances (embeddings)…";
-        // 1) Charger le fichier embeddings.json (doit être à la racine du dépôt)
-        kb = await fetch('./embeddings.json').then(r=>{
-          if(!r.ok) throw new Error(`Impossible de charger embeddings.json (${r.status})`);
-          return r.json();
-        });
-        progress.textContent = `Connaissances: ${kb.length} passages.`;
-        // 2) Démarrer l'encodeur d'embeddings
-        progress.textContent = "Initialisation de l'encodeur (Transformers.js)…";
-        embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-        progress.textContent = "Connaissances prêtes.";
-      }catch(e){
-        console.error(e);
-        progress.textContent = "Embeddings introuvables. Placez embeddings.json à la racine du dépôt.";
-        debugEl.style.display = 'block';
-        debugEl.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
-      }
-    }
-
-    async function loadModel(){
-      loadBtn.disabled = true;
-      modelSelect.disabled = true;
-      progress.textContent = "Préparation…";
-      debugEl.style.display = 'none';
-
-      // Watchdog: si aucun progrès en 30s, afficher une aide
-      const watchdog = setInterval(()=>{
-        if(Date.now() - lastProgressAt > 30000){
-          progress.textContent = "Chargement long… Si ça bloque, essayez l'autre modèle, désactivez les bloqueurs, ou forcez le rechargement (Ctrl/Cmd+Shift+R).";
-          lastProgressAt = Date.now();
-        }
-      }, 5000);
-
-      try{
-        const wanted = modelSelect.value;
-        const list = webllm.prebuiltAppConfig?.model_list || [];
-        const found = list.find(m=>m.model_id===wanted);
-        if(!found){
-          throw new Error(`Modèle inconnu: ${wanted}. Dispos: ${list.map(m=>m.model_id).slice(0,20).join(', ')}`);
-        }
-        engine = await CreateMLCEngine(
-          wanted,
-          { initProgressCallback: (p) => { lastProgressAt = Date.now(); progress.textContent = p.text || '…'; } }
-        );
-        progress.textContent = "Snow est prêt. Chargement des connaissances…";
-        await loadKnowledge();
-        clearInterval(watchdog);
-        progress.textContent = "Snow est prêt. Pose une question.";
-      }catch(e){
-        clearInterval(watchdog);
-        console.error(e);
-        progress.textContent = "Échec du chargement.";
-        debugEl.style.display = 'block';
-        debugEl.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
-        loadBtn.disabled = false;
-        modelSelect.disabled = false;
-      }
-    }
-
-    loadBtn.addEventListener('click', loadModel);
-
-    async function embed(text){
-      const t = await embedder(text, { normalize: true });
-      // mean pooling
-      const dims = t.dims[t.dims.length-1];
-      const tokens = t.data.length / dims;
-      const out = new Float32Array(dims);
-      for(let tok=0; tok<tokens; tok++){
-        for(let d=0; d<dims; d++) out[d] += t.data[tok*dims + d];
-      }
-      for(let d=0; d<dims; d++) out[d] /= tokens || 1;
-      // L2
-      let n=0; for(let d=0; d<dims; d++) n += out[d]*out[d]; n = Math.sqrt(n)||1; for(let d=0; d<dims; d++) out[d]/=n;
-      return out;
-    }
-
-    function topKScored(qVec, k=4){
-      const scored = kb.map(ch=>({ text: ch.text, score: cos(qVec, ch.vector) }));
-      scored.sort((a,b)=>b.score-a.score);
-      return scored.slice(0,k);
-    }
-
-    async function answerFromPDF(question){
-      if(!engine) throw new Error("Modèle non chargé");
-      if(!kb || !embedder) throw new Error("Connaissances non prêtes (embeddings)");
-      const qVec = await embed(question);
-      const top = topKScored(qVec, 4);
-      const ctx = top.map((x,i)=>`[${i+1}] ${x.text}`).join('\n---\n');
-      const sys = `Tu es Snow, un petit chat. Ta mission: répondre UNIQUEMENT à partir des extraits ci-dessous (issus du document de référence). Si l'information manque, dis clairement que tu ne sais pas. Sois concis, direct et fidèle au texte.\n\n=== EXTRATS SÉLECTIONNÉS ===\n${ctx}`;
-
-      const stream = await engine.chat.completions.create({
-        messages: [
-          { role: 'system', content: sys },
-          { role: 'user', content: question }
-        ],
-        stream: true
+        const scored = kb.map(ch=>({ text: ch.text, score: cos(q, ch.vector) }));
+        scored.sort((a,b)=>b.score-a.score);
+        return scored.slice(0,k);
       });
-      let out = '';
-      for await (const chunk of stream){
-        const token = chunk?.choices?.[0]?.delta?.content || '';
-        if(token) out += token;
-      }
-      return out.trim();
     }
 
     form.addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const text = input.value.trim();
-      if(!text) return;
-      addBubble(text, 'user');
+      const q = input.value.trim();
+      if(!q) return;
+      addBubble(q, 'user');
       input.value = '';
+
       const thinking = document.createElement('div');
       thinking.className = 'bubble bot';
       thinking.textContent = '…';
       messages.appendChild(thinking);
-      messages.scrollTop = messages.scrollHeight;
 
       try{
-        const reply = await answerFromPDF(text);
-        thinking.textContent = reply || "(Pas d'info suffisante dans le document.)";
+        const hits = await topK(q, 3);
+        const text = hits.map((h,i)=>`[${i+1}] ${h.text}`).join('\n\n');
+        thinking.textContent = text || "(Pas d'extrait pertinent trouvé dans le document.)";
+        const src = document.createElement('div');
+        src.className = 'src';
+        src.textContent = "Réponse extraite de votre document (aucun stockage, aucun envoi).";
+        thinking.appendChild(src);
       }catch(err){
-        thinking.textContent = err?.message?.includes('embeddings')
-          ? "Les connaissances ne sont pas chargées (embeddings). Clique sur ‘Charger Snow’."
-          : "Oups, échec de réponse. Réessaie ou recharge la page.";
+        thinking.textContent = "Oups, échec. Rechargez la page et réessayez.";
         console.error(err);
       }
     });
