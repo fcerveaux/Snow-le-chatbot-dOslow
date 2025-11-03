@@ -94,7 +94,7 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">Petit chat qui répond à vos questions — tout se passe <strong>dans votre navigateur</strong>.</div>
+        <div class="subtitle">Petit chat qui répond à vos questions — tout se passe <strong>dans votre navigateur</strong>. Si rien ne se passe, cliquez sur <em>Charger Snow</em> ci‑dessous.</div>
       </div>
     </div>
   </header>
@@ -105,7 +105,15 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
         <div id="messages" class="messages">
           <div class="bubble bot">Bonjour ! Je suis Snow. Posez-moi une question&nbsp;:)</div>
         </div>
-        <div class="hint">Étape 1 — l'interface est prête. À l'étape suivante, je commencerai à répondre.</div>
+        <div class="hint">
+          <button id="load-btn" class="btn" type="button">Charger Snow</button>
+          <select id="model" class="input" style="max-width:320px">
+            <option value="Qwen2.5-1.5B-Instruct-q4f16_1">Qwen 1.5B (petit, qualité OK)</option>
+            <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1">TinyLlama 1.1B (très léger, plus rapide)</option>
+          </select>
+          <div id="progress" style="margin-top:8px">Prêt à charger.</div>
+        </div>
+      </div>
       </div>
 
       <form class="ask" id="ask-form">
@@ -120,14 +128,15 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
   </footer>
 
   <script type="module">
-    // Étape 2 : branchement d'un petit modèle LLM dans le navigateur (WebLLM).
-    // Objectif : Snow répond (sans le PDF pour l'instant). Aucune donnée n'est envoyée ni stockée.
-
+    // Étape 2 (corrigée) : chargement manuel + indicateur clair + modèle au choix.
     import { CreateWebWorkerMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
 
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
     const messages = document.getElementById('messages');
+    const loadBtn = document.getElementById('load-btn');
+    const modelSelect = document.getElementById('model');
+    const progress = document.getElementById('progress');
 
     function addBubble(text, who){
       const b = document.createElement('div');
@@ -137,19 +146,38 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // 1) Charger un petit modèle pour démarrer vite.
-    const status = document.querySelector('.hint');
-    status.textContent = "Chargement du cerveau de Snow… (peut prendre 30–90 s la première fois)";
+    // 0) Vérif WebGPU
+    const hasWebGPU = !!navigator.gpu;
+    if(!hasWebGPU){
+      progress.innerHTML = "Votre navigateur ne supporte pas WebGPU. Essayez Chrome/Edge à jour sur ordinateur.";
+      loadBtn.disabled = true;
+    }
 
-    const engine = await CreateWebWorkerMLCEngine(
-      // Modèle léger : bonne compatibilité WebGPU + taille raisonnable
-      { model: "Qwen2.5-1.5B-Instruct-q4f16_1" },
-      { initProgressCallback: (p) => { status.textContent = p.text; } }
-    );
+    let engine = null;
 
-    status.textContent = "Snow est prêt ! Pose une question.";
+    async function loadModel(){
+      loadBtn.disabled = true;
+      modelSelect.disabled = true;
+      progress.textContent = "Préparation…";
+      try{
+        const model = modelSelect.value;
+        engine = await CreateWebWorkerMLCEngine(
+          { model },
+          { initProgressCallback: (p) => { progress.textContent = p.text || "…"; } }
+        );
+        progress.textContent = "Snow est prêt. Pose une question.";
+      }catch(e){
+        console.error(e);
+        progress.textContent = "Échec du chargement. Essaie l'autre modèle, ou rafraîchis la page.";
+        loadBtn.disabled = false;
+        modelSelect.disabled = false;
+      }
+    }
+
+    loadBtn.addEventListener('click', loadModel);
 
     async function askLLM(question){
+      if(!engine){ throw new Error('Le modèle n\'est pas encore chargé.'); }
       const sys = `Tu es Snow, un petit chat doux et direct. Réponds de manière concise et claire. Si tu ne sais pas, dis-le.`;
       const stream = await engine.chat.completions.create({
         messages: [
@@ -182,7 +210,7 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
         const reply = await askLLM(text);
         thinking.textContent = reply || "(Je n'ai pas compris, réessaie en reformulant.)";
       }catch(err){
-        thinking.textContent = "Oups, je n'ai pas réussi à répondre. Réessaie.";
+        thinking.textContent = "Clique d'abord sur ‘Charger Snow’, puis repose ta question.";
         console.error(err);
       }
     });
