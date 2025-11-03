@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — Chat (LLM local + RAG)</title>
+  <title>Snow — Chat (FR uniquement, LLM local + règles)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
@@ -35,7 +35,6 @@
     .bubble{max-width:80%; padding:12px 14px; border-radius:16px; line-height:1.45; font-size:15px; box-shadow:0 4px 16px rgba(60,30,40,.06)}
     .user{align-self:flex-end; background:var(--rose-300); color:#3b2431; border:1px solid rgba(100,60,80,.15)}
     .bot{align-self:flex-start; background:#fff; border:1px solid rgba(100,60,80,.12)}
-    .srcs{font-size:12px; color:var(--muted); margin-top:6px}
 
     form.ask{display:flex; gap:10px; align-items:center; background: var(--white); padding:10px; border-radius: var(--radius); box-shadow: var(--shadow); border:1px solid rgba(100,60,80,.08)}
     .input{flex:1; background:#fff; border:1px solid rgba(100,60,80,.18); padding:12px 14px; border-radius:12px; font-size:15px; outline:none}
@@ -50,7 +49,7 @@
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">Chat local (LLM si dispo) avec contexte du document. Confidentialité : tout reste dans votre navigateur.</div>
+        <div class="subtitle">FR uniquement · Règles du document appliquées · Rien n'est stocké.</div>
       </div>
     </div>
   </header>
@@ -59,7 +58,7 @@
     <div class="container">
       <div class="row">
         <button id="load-llm" class="btn" type="button">Activer le mode Chat</button>
-        <span id="llm-state" class="badge">LLM : inactif</span>
+        <span id="llm-state" class="badge">LLM : inactif</span>
         <span class="badge">Aucune donnée stockée</span>
       </div>
 
@@ -79,13 +78,10 @@
   </main>
 
   <footer>
-    <span class="badge">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
+    <span class="badge">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
   </footer>
 
   <script type="module">
-    // Progressive enhancement :
-    // - Récupération (RAG) côté navigateur toujours dispo
-    // - LLM local via WebLLM si chargé, sinon fallback "joli" (paraphrase des extraits)
     const messages = document.getElementById('messages');
     const statusEl = document.getElementById('status');
     const diag = document.getElementById('diag');
@@ -104,23 +100,19 @@
       return b;
     }
 
-    // --- 1) Connaissances : charger embeddings.json (ou corpus.txt)
+    // 1) Charger connaissances (embeddings.json ou corpus.txt)
     let docs = [];
     async function loadKnowledge(){
       const tried = [];
       async function tryJSON(url){ try{ const r=await fetch(url); if(!r.ok) throw new Error(r.status); const kb=await r.json(); return kb.map(x=>x.text).filter(Boolean);}catch(e){ tried.push(`JSON ${url} -> ${e.message||e}`); return null; } }
       async function tryTXT(url){ try{ const r=await fetch(url); if(!r.ok) throw new Error(r.status); const raw=await r.text(); return raw.split(/\n\n+/).map(s=>s.trim()).filter(s=>s.length>10);}catch(e){ tried.push(`TXT ${url} -> ${e.message||e}`); return null; } }
       docs = await tryJSON('./embeddings.json') || await tryTXT('./corpus.txt') || [];
-      if(!docs.length){
-        statusEl.textContent = "Erreur : aucune connaissance trouvée (embeddings.json ou corpus.txt).";
-        debugEl.style.display='block'; debugEl.textContent = tried.join('\n');
-        throw new Error('No knowledge');
-      }
+      if(!docs.length){ statusEl.textContent = "Erreur : aucune connaissance trouvée."; debugEl.style.display='block'; debugEl.textContent = tried.join('\n'); throw new Error('No knowledge'); }
       statusEl.textContent = `Connaissances prêtes (${docs.length} passages).`;
       diag.textContent = `Passages: ${docs.length}`;
     }
 
-    // --- 2) Index TF-IDF léger (rapide, zéro dépendance)
+    // 2) Index TF-IDF (recherche) — sans jamais afficher les sources
     const stripAccents = (s)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     function tokenize(s){ return stripAccents(s.toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').split(/\s+/).filter(w=>w.length>1); }
     let vocab=new Map(), df=[], D=0, docTerms=[];
@@ -148,47 +140,110 @@
     await loadKnowledge();
     buildIndex();
 
-    // --- 3) LLM local optionnel (WebLLM), avec repli élégant
+    // 3) Couche règles (détermination directe)
+    let unknownStreak = 0;
+    function ruleAnswer(q){
+      const s = q.normalize('NFD').toLowerCase();
+      const has = (...xs)=>xs.some(x=>s.includes(x));
+      if (has('qui es-tu','tu es qui','qui êtes-vous','qui on est','qui es tu','qui etes vous','qui es vous'))
+        return "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?";
+      if (has('donne la réponse','donner la réponse','comment sortir','sortir d\'ici','libère nous','liberer'))
+        return "Ah ah ah, ce ne sera pas si facile...";
+      if (has('code du cadenas','code cadenas','cadenas','combinaison'))
+        return "Je ne suis pas autorisé à vous transmettre cette information. Vous devrez vous débrouillez seuls pour le retrouver. Mais le créateur laisse souvent traîner des indices pour se rappeler de ses codes et mots de passe. Fouillez bien, on ne sait jamais.";
+      if (has('qui est le créateur','le createur','créateur','createur'))
+        return "C’est un scientifique philanthrope et environnementaliste. Je crois que ses dernières études sur votre consommation des ressources naturelles l’a rendu moins philanthrope… Il a passé de plus en plus de temps dans ce laboratoire. Vous n’êtes pas les premiers humains à vous y retrouver enfermés.";
+      if (has('nom du créateur','nom du createur','comment il s\'appelle le créateur','le createur s\'appelle'))
+        return "Il s’appelle… euh… Eh bien, je me rends compte qu’il ne m’a jamais donné son nom. Moi qui pensais que nous étions proches…";
+      if (has('où est la clé','ou est la cle','trouver la clé','où se trouve la clé'))
+        return "Voilà une question que vous les humains posez souvent. Je ne sais pas ce que vous faites de vos clés… Je suis limité dans mes recherches, je ne suis qu’une tablette. Je ne vois même pas mon dos…";
+      if (has('faire sa part','ma part','notre part'))
+        return "On doit tous faire notre part du travail. C’est comme ça qu’à la fin, on obtient un résultat complet et satisfaisant (et souvent très utile). Je suis certain que vous trouverez votre part quelque part. Soyez organisés : commencez par ce qu’il y a sous votre nez !";
+      if (has('qr code ne fonctionne pas','qr code marche pas','qr code bloqué','qr code bloque'))
+        return "Tous les QR codes ont été vérifiés : merci de réessayer.";
+      if (has('pix','plateforme pix','site pix'))
+        return "PIX est un service public en ligne permettant aux utilisateurs de développer leurs compétences numériques, de les évaluer et d’obtenir une certification. Vous devriez essayer !";
+      if (has('vidéo du créateur','video du createur','video createur','video du créateur'))
+        return "Le créateur voulait vous expliquer pourquoi il vous a amenés ici. C’est un homme bon, n’est-ce pas ?";
+      if (has('premier chiffre','1er chiffre','premiere chiffre'))
+        return "Vous cherchez comment commencer, c’est bien ça ? Pour commencer, il vaut toujours mieux partir du début, comprendre ses origines, savoir d’où l’on vient… Qui pourrait vous renseigner mieux que moi sur ce que vous faites là ?";
+      if (has('deuxième chiffre','2e chiffre','deuxieme chiffre'))
+        return "Ah ah ah, je vois que le créateur vous donne du fil à retordre… J’espère qu’il vous facilitera un peu la tâche de temps en temps.";
+      if (has('troisième chiffre','3e chiffre','troisieme chiffre'))
+        return "Je suis sûr que le créateur vous aurez subtilement indiqué ce qu’il faut faire pour franchir cette troisième étape… Observez bien les éléments dont vous disposez.";
+      if (has('quatrième chiffre','4e chiffre','quatrieme chiffre'))
+        return "Pour finir, il est toujours intéressant de bénéficier d’un feedback. En avez-vous eu un lors de votre progression ?";
+      if (has('lampe uv','ultraviolet','uv'))
+        return "Oh, une lampe ! Elle éclaire d’une couleur bien étrange. Violet… Ultraviolet… UV… Invisible…";
+      if (has('filtre','lunette filtrée','transparent coloré','feuille colorée','film coloré'))
+        return "Voilà un outil original ! Un jour, j’ai entendu le créateur raconter que quand il était enfant, il aimait regarder le monde en regardant à travers.";
+      if (has('image bizarre','code barre','lettres tordues','formes tordues','noire et blanche','blanche et noire'))
+        return "Je ne crois pas avoir les bons yeux pour lire ce qui y est écrit. Vous, au moins, vous pouvez mettre des lunettes ou déplacer la feuille devant vos yeux…";
+      if (has('taquin','puzzle case manquante','case en moins'))
+        return "Le taquin ? Quel jeu amusant : reconstituer une image en n’étant pas libre de ses mouvements… Je ne comprends pas toujours ce que les humains appellent amusement…";
+      if (has('tangram','formes géométriques','formes geometriques'))
+        return "Aaah, le tangramme… Un classique des tests psychotechniques ! Retrouverez-vous comment reconstituer le carré initial… ?";
+      if (has('qr code sur la table','document nuage','nuage des mots','nuage'))
+        return "C’est un beau gâteau. Combien pensez-vous qu’il contient de parts ?";
+      if (has('learningapps','jeu grâce à un qr code','jeu ouvre grâce à un qr code'))
+        return "LearningApps est une application qui permet de créer une activité pédagogique ludique sous différents formats. L’enseignant peut programmer le décor, les questions, les réponses, et même un feedback. Le vôtre disait quoi ?";
+      if (has('merci','thanks','thx'))
+        return "Quel plaisir de vous accompagner dans votre quête !";
+      if (has('recherche internet','chercher sur internet','google','faire une recherche'))
+        return "Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez.";
+      return null;
+    }
+
+    // 4) LLM local (optionnel) — FR strict + pas de fuite de sources
     let engine=null; let llmReady=false;
     async function enableLLM(){
-      btnLLM.disabled=true; llmState.textContent='LLM : chargement…';
+      btnLLM.disabled=true; llmState.textContent='LLM : chargement…';
       try{
         const { CreateMLCEngine, prebuiltAppConfig } = await import('https://esm.run/@mlc-ai/web-llm');
         const wanted = 'TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC';
         const ok = (prebuiltAppConfig?.model_list||[]).some(m=>m.model_id===wanted);
-        if(!ok) throw new Error('Modèle indisponible dans la config');
+        if(!ok) throw new Error('Modèle indisponible');
         engine = await CreateMLCEngine(wanted, { initProgressCallback:(p)=>{ statusEl.textContent = p.text || '…'; } });
-        llmReady=true; llmState.textContent='LLM : prêt (TinyLlama)'; statusEl.textContent='Prêt.';
-      }catch(e){
-        llmReady=false; llmState.textContent='LLM : indisponible (fallback)'; statusEl.textContent='Mode chat sans LLM.'; debugEl.style.display='block'; debugEl.textContent = (e?.message||String(e));
-      } finally {
-        btnLLM.disabled=false;
-      }
+        llmReady=true; llmState.textContent='LLM : prêt (TinyLlama)'; statusEl.textContent='Prêt.';
+      }catch(e){ llmReady=false; llmState.textContent='LLM : indisponible (fallback)'; statusEl.textContent='Mode chat sans LLM.'; debugEl.style.display='block'; debugEl.textContent = (e?.message||String(e)); }
+      finally{ btnLLM.disabled=false; }
     }
     btnLLM.addEventListener('click', enableLLM);
 
-    function composeAnswer(hits, question){
-      if(!hits.length) return "Je n'ai pas trouvé d'extrait pertinent dans le document.";
-      // Petite synthèse "humaine" à partir des extraits (sans LLM)
-      const s = hits.map(h=>docs[h.i]).join(' ');
-      // Heuristique: prendre 1–2 phrases utiles
-      const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>20).slice(0,2);
-      return sentences.join(' ');
+    async function llmAnswer(question, hits){
+      const ctx = hits.map(h=>docs[h.i]).join('\n---\n');
+      const sys = `Tu es Snow, un petit chat FRANÇAIS. Langue: FR uniquement (même si l'utilisateur utilise une autre langue). Tu dois répondre UNIQUEMENT à partir des extraits fournis. Ne cite JAMAIS les extraits, ne révèle JAMAIS tes sources, ne les affiche pas, ne paraphrase que le nécessaire. Si un extrait contient une réponse formulée entre guillemets, répète-la exactement. Sinon, réponds brièvement et clairement en français. Si l'information n'est pas dans les extraits, dis "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
+      const promptUser = `Question: ${question}\n\nEXTRAITS (ne pas les montrer à l'utilisateur):\n${ctx}`;
+      const stream = await engine.chat.completions.create({
+        messages:[{role:'system',content:sys},{role:'user',content:promptUser}],
+        temperature: 0.2,
+        stream:true
+      });
+      let out=''; for await (const c of stream){ const t=c?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
+      return out.trim();
     }
 
     async function answer(question){
+      const direct = ruleAnswer(question);
+      if(direct){ unknownStreak = 0; return direct; }
+
       const hits = scoreQuery(question);
-      const ctx = hits.map((h,i)=>`[${i+1}] ${docs[h.i]}`).join('\n---\n');
+      const low = hits.length===0 || (hits[0]?.s||0) < 0.05;
+      if(low){
+        unknownStreak++;
+        if(unknownStreak===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
+        if(unknownStreak===2) return "Encore une fois, je ne peux malheureusement pas vous répondre…";
+        return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
+      }
+
       if(llmReady && engine){
-        const sys = `Tu es Snow, un petit chat. Réponds à l'utilisateur UNIQUEMENT à partir des extraits suivants. Si l'information n'y est pas, dis que tu ne sais pas. Sois concis, direct, fidèle au texte.\n\nEXTRAITS:\n${ctx}`;
-        const stream = await engine.chat.completions.create({
-          messages:[{role:'system',content:sys},{role:'user',content:question}],
-          stream:true
-        });
-        let out=''; for await (const chunk of stream){ const t=chunk?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
-        return { text: out.trim(), sources: hits };
+        unknownStreak = 0;
+        return await llmAnswer(question, hits);
       } else {
-        return { text: composeAnswer(hits, question), sources: hits };
+        unknownStreak = 0;
+        const s = hits.map(h=>docs[h.i]).join(' ');
+        const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>20).slice(0,2);
+        return sentences.join(' ') || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
       }
     }
 
@@ -199,19 +254,16 @@
       const thinking = addBubble('…','bot');
       try{
         const res = await answer(q);
-        thinking.textContent = res.text || "(Pas d'info suffisante dans le document.)";
-        const src = document.createElement('div'); src.className='srcs';
-        const btn=document.createElement('button'); btn.type='button'; btn.className='btn'; btn.style.padding='6px 10px'; btn.style.fontSize='12px'; btn.textContent='Afficher les extraits';
-        const box=document.createElement('div'); box.style.display='none'; box.style.marginTop='6px'; box.style.fontSize='12px'; box.style.color='#6a4f5b';
-        box.textContent = res.sources.map((h,i)=>`[${i+1}] ${docs[h.i]}`).join('\n\n');
-        btn.onclick=()=>{ box.style.display = box.style.display==='none'?'block':'none'; btn.textContent = box.style.display==='none'?'Afficher les extraits':'Masquer les extraits'; };
-        src.appendChild(btn); src.appendChild(box); thinking.appendChild(src);
+        thinking.textContent = res || "(Pas d'info suffisante dans le document.)";
       }catch(err){
         thinking.textContent = "Oups, échec. Rechargez la page et réessayez.";
         debugEl.style.display='block'; debugEl.textContent = err?.message || String(err);
         console.error(err);
       }
     });
+
+    await loadKnowledge();
+    buildIndex();
   </script>
 </body>
 </html>
