@@ -112,8 +112,8 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
             <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1">TinyLlama 1.1B (très léger, plus rapide)</option>
           </select>
           <div id="progress" style="margin-top:8px">Prêt à charger.</div>
+          <pre id="debug" style="display:none;white-space:pre-wrap;background:#fff;border:1px solid rgba(100,60,80,.12);border-radius:12px;padding:8px;margin-top:8px;font-size:12px;color:#7a4f60"></pre>
         </div>
-      </div>
       </div>
 
       <form class="ask" id="ask-form">
@@ -168,7 +168,10 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
         progress.textContent = "Snow est prêt. Pose une question.";
       }catch(e){
         console.error(e);
-        progress.textContent = "Échec du chargement. Essaie l'autre modèle, ou rafraîchis la page.";
+        progress.textContent = "Échec du chargement. Essaie l'autre modèle, rafraîchis la page, ou désactive temporairement les bloqueurs.";
+        const dbg = document.getElementById('debug');
+        dbg.style.display = 'block';
+        dbg.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
         loadBtn.disabled = false;
         modelSelect.disabled = false;
       }
