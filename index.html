@@ -3,16 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — mode Ultra‑Lite (TF‑IDF)</title>
+  <title>Snow — Chat (LLM local + RAG)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
   <style>
     :root{ --rose-bg:#f7e6ec; --rose-100:#fdeff4; --rose-200:#f9dbe6; --rose-300:#f2c3d6; --rose-400:#e3a7c3; --text:#3f2d38; --muted:#6a4f5b; --white:#fff; --radius:18px; --shadow:0 10px 30px rgba(100,60,80,.15) }
     *{box-sizing:border-box}
+    html,body{height:100%}
     body{margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text);
       background: radial-gradient(1200px 800px at 10% -10%, var(--rose-200), transparent), radial-gradient(1200px 800px at 110% 10%, var(--rose-100), transparent), var(--rose-bg);
-      min-height:100vh; display:flex; flex-direction:column}
+      display:flex; flex-direction:column}
     header{max-width:900px; margin:24px auto 0; padding:0 16px}
     .brand{display:flex; align-items:center; gap:14px}
     .avatar{width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg, var(--rose-400), var(--rose-200)); box-shadow:var(--shadow); position:relative}
@@ -21,21 +22,26 @@
     .avatar:after{width:16px;height:10px;border-radius:10px 10px 0 0; bottom:10px; left:18px; box-shadow:20px 0 0 var(--white)}
     .title{font-family:"Kaisei Decol",serif; font-weight:700; font-size:28px}
     .subtitle{color:var(--muted); font-size:14px; margin-top:2px}
+
     main{flex:1; display:flex}
     .container{max-width:900px; width:100%; margin:16px auto; padding:0 16px; display:grid; grid-template-rows:auto 1fr auto; gap:16px}
+
+    .notice{font-size:12px; color:var(--muted)}
+    .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .badge{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
+
     .chatbox{background:var(--white); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; display:flex; flex-direction:column; gap:16px; min-height:55vh; border:1px solid rgba(100,60,80,.08)}
     .messages{display:flex; flex-direction:column; gap:12px; overflow:auto; padding:6px}
-    .bubble{max-width:100%; padding:12px 14px; border-radius:16px; line-height:1.45; font-size:15px; box-shadow:0 4px 16px rgba(60,30,40,.06)}
+    .bubble{max-width:80%; padding:12px 14px; border-radius:16px; line-height:1.45; font-size:15px; box-shadow:0 4px 16px rgba(60,30,40,.06)}
     .user{align-self:flex-end; background:var(--rose-300); color:#3b2431; border:1px solid rgba(100,60,80,.15)}
     .bot{align-self:flex-start; background:#fff; border:1px solid rgba(100,60,80,.12)}
-    .src{font-size:12px; color:var(--muted); margin-top:6px}
-    form.ask{display:flex; gap:10px; align-items:center; background:var(--white); padding:10px; border-radius:var(--radius); box-shadow:var(--shadow); border:1px solid rgba(100,60,80,.08)}
+    .srcs{font-size:12px; color:var(--muted); margin-top:6px}
+
+    form.ask{display:flex; gap:10px; align-items:center; background: var(--white); padding:10px; border-radius: var(--radius); box-shadow: var(--shadow); border:1px solid rgba(100,60,80,.08)}
     .input{flex:1; background:#fff; border:1px solid rgba(100,60,80,.18); padding:12px 14px; border-radius:12px; font-size:15px; outline:none}
     .btn{background:linear-gradient(135deg,var(--rose-400),var(--rose-300)); color:#3f1630; border:none; padding:12px 14px; border-radius:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(227,167,195,.35)}
+
     footer{max-width:900px; margin:0 auto 24px; padding:0 16px; color:var(--muted); font-size:12px; text-align:center}
-    .badge{display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
-    details{font-size:12px; color:var(--muted)}
-    pre.debug{white-space:pre-wrap;background:#fff;border:1px solid rgba(100,60,80,.12);border-radius:12px;padding:8px;margin-top:8px;font-size:12px;color:#7a4f60;display:none}
   </style>
 </head>
 <body>
@@ -44,22 +50,25 @@
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">Mode Ultra‑Lite : recherche sémantique simple (TF‑IDF), 100% navigateur.</div>
+        <div class="subtitle">Chat local (LLM si dispo) avec contexte du document. Confidentialité : tout reste dans votre navigateur.</div>
       </div>
     </div>
   </header>
 
   <main>
     <div class="container">
+      <div class="row">
+        <button id="load-llm" class="btn" type="button">Activer le mode Chat</button>
+        <span id="llm-state" class="badge">LLM : inactif</span>
+        <span class="badge">Aucune donnée stockée</span>
+      </div>
+
       <div class="chatbox" role="region" aria-live="polite">
         <div id="messages" class="messages">
-          <div class="bubble bot">Bonjour ! Je suis Snow (mode Ultra‑Lite). Pose-moi une question, je te renverrai les passages les plus pertinents du document.</div>
+          <div class="bubble bot">Bonjour ! Je suis Snow. Pose-moi une question 🙂</div>
         </div>
-        <div class="bubble bot" id="status">Chargement des connaissances…</div>
-        <details style="margin-top:6px"><summary>Diagnostic</summary>
-          <div id="diag">—</div>
-          <pre id="debug" class="debug"></pre>
-        </details>
+        <div class="notice" id="status">Chargement des connaissances…</div>
+        <details class="notice"><summary>Diagnostic</summary><div id="diag">—</div><pre id="debug" style="white-space:pre-wrap;display:none"></pre></details>
       </div>
 
       <form class="ask" id="ask-form">
@@ -74,12 +83,17 @@
   </footer>
 
   <script type="module">
+    // Progressive enhancement :
+    // - Récupération (RAG) côté navigateur toujours dispo
+    // - LLM local via WebLLM si chargé, sinon fallback "joli" (paraphrase des extraits)
     const messages = document.getElementById('messages');
-    const status = document.getElementById('status');
+    const statusEl = document.getElementById('status');
+    const diag = document.getElementById('diag');
+    const debugEl = document.getElementById('debug');
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
-    const debugEl = document.getElementById('debug');
-    const diag = document.getElementById('diag');
+    const btnLLM = document.getElementById('load-llm');
+    const llmState = document.getElementById('llm-state');
 
     function addBubble(text, who){
       const b = document.createElement('div');
@@ -87,118 +101,111 @@
       b.textContent = text;
       messages.appendChild(b);
       messages.scrollTop = messages.scrollHeight;
+      return b;
     }
 
-    // --- utils texte ---
-    const stripAccents = (s)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    function tokenize(s){
-      return stripAccents(s.toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').split(/\s+/).filter(w=>w.length>1);
-    }
-
-    // --- charge connaissances ---
-    let docs = []; // tableau de strings (passages)
-
+    // --- 1) Connaissances : charger embeddings.json (ou corpus.txt)
+    let docs = [];
     async function loadKnowledge(){
-      try{
-        // 1) on tente embeddings.json (pour récupérer au moins les textes)
-        const r = await fetch('./embeddings.json');
-        if(r.ok){
-          const kb = await r.json();
-          docs = kb.map(x=>x.text).filter(Boolean);
-          status.textContent = `Connaissances chargées (${docs.length} passages).`;
-          return;
-        }
-        // 2) fallback: corpus.txt si présent
-        const r2 = await fetch('./corpus.txt');
-        if(r2.ok){
-          const raw = await r2.text();
-          // découpe simple en paragraphes
-          docs = raw.split(/\n\n+/).map(s=>s.trim()).filter(s=>s.length>30);
-          status.textContent = `Connaissances chargées depuis corpus.txt (${docs.length} passages).`;
-          return;
-        }
-        throw new Error('Ni embeddings.json ni corpus.txt disponibles.');
-      }catch(e){
-        status.textContent = 'Erreur: impossible de charger les connaissances.';
-        debugEl.style.display = 'block';
-        debugEl.textContent = e?.message || String(e);
-        throw e;
+      const tried = [];
+      async function tryJSON(url){ try{ const r=await fetch(url); if(!r.ok) throw new Error(r.status); const kb=await r.json(); return kb.map(x=>x.text).filter(Boolean);}catch(e){ tried.push(`JSON ${url} -> ${e.message||e}`); return null; } }
+      async function tryTXT(url){ try{ const r=await fetch(url); if(!r.ok) throw new Error(r.status); const raw=await r.text(); return raw.split(/\n\n+/).map(s=>s.trim()).filter(s=>s.length>10);}catch(e){ tried.push(`TXT ${url} -> ${e.message||e}`); return null; } }
+      docs = await tryJSON('./embeddings.json') || await tryTXT('./corpus.txt') || [];
+      if(!docs.length){
+        statusEl.textContent = "Erreur : aucune connaissance trouvée (embeddings.json ou corpus.txt).";
+        debugEl.style.display='block'; debugEl.textContent = tried.join('\n');
+        throw new Error('No knowledge');
       }
+      statusEl.textContent = `Connaissances prêtes (${docs.length} passages).`;
+      diag.textContent = `Passages: ${docs.length}`;
     }
 
-    // --- indexation TF-IDF ---
-    let vocab = new Map(); // mot -> id
-    let df = [];           // doc frequency par terme id
-    let D = 0;             // nombre de documents
-    let docTerms = [];     // tableau de Map(termeId -> tf)
-
+    // --- 2) Index TF-IDF léger (rapide, zéro dépendance)
+    const stripAccents = (s)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    function tokenize(s){ return stripAccents(s.toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').split(/\s+/).filter(w=>w.length>1); }
+    let vocab=new Map(), df=[], D=0, docTerms=[];
     function buildIndex(){
-      D = docs.length; vocab.clear(); df = []; docTerms = [];
-      docs.forEach((text, idx)=>{
-        const terms = tokenize(text);
-        const tf = new Map();
-        for(const w of terms){ tf.set(w, (tf.get(w)||0)+1); }
-        const unique = new Set(terms);
-        for(const w of unique){
-          if(!vocab.has(w)) vocab.set(w, vocab.size);
-          const id = vocab.get(w);
-          df[id] = (df[id]||0) + 1;
-        }
-        docTerms[idx] = tf;
+      D = docs.length; vocab.clear(); df=[]; docTerms=[];
+      docs.forEach((text,i)=>{
+        const terms = tokenize(text); const tf = new Map(); terms.forEach(w=>tf.set(w,(tf.get(w)||0)+1));
+        const unique = new Set(terms); unique.forEach(w=>{ if(!vocab.has(w)) vocab.set(w,vocab.size); const id=vocab.get(w); df[id]=(df[id]||0)+1; });
+        docTerms[i]=tf;
       });
-      diag.textContent = `Index: ${vocab.size} termes, ${D} passages.`;
+      diag.textContent += `\nIndex: ${vocab.size} termes.`;
     }
-
     function scoreQuery(q){
-      const qTerms = tokenize(q);
-      const qtf = new Map(); for(const w of qTerms){ qtf.set(w,(qtf.get(w)||0)+1); }
-      // tf-idf pour la requête
-      const qVec = new Map();
-      for(const [w, f] of qtf){
-        const id = vocab.get(w); if(id===undefined) continue;
-        const idf = Math.log((D+1)/((df[id]||0)+1)) + 1; // lissage
-        qVec.set(id, f * idf);
-      }
-      const qNorm = Math.sqrt(Array.from(qVec.values()).reduce((s,v)=>s+v*v,0)) || 1;
-
-      // scores documents
-      const scores = new Array(D).fill(0);
+      const qtf=new Map(); tokenize(q).forEach(w=>qtf.set(w,(qtf.get(w)||0)+1));
+      const qVec=new Map(); for(const [w,f] of qtf){ const id=vocab.get(w); if(id===undefined) continue; const idf=Math.log((D+1)/((df[id]||0)+1))+1; qVec.set(id,f*idf); }
+      const qNorm=Math.sqrt(Array.from(qVec.values()).reduce((s,v)=>s+v*v,0))||1;
+      const scores=new Array(D).fill(0);
       for(let d=0; d<D; d++){
-        let dot=0, dnorm=0;
-        // calc tf-idf doc
-        for(const [w, f] of docTerms[d]){
-          const id = vocab.get(w); if(id===undefined) continue;
-          const idf = Math.log((D+1)/((df[id]||0)+1)) + 1;
-          const val = f * idf;
-          dnorm += val*val;
-          const qv = qVec.get(id); if(qv) dot += qv * val;
-        }
-        dnorm = Math.sqrt(dnorm)||1;
-        scores[d] = dot/(qNorm*dnorm);
+        let dot=0,dnorm=0; for(const [w,f] of docTerms[d]){ const id=vocab.get(w); if(id===undefined) continue; const idf=Math.log((D+1)/((df[id]||0)+1))+1; const val=f*idf; dnorm+=val*val; const qv=qVec.get(id); if(qv) dot+=qv*val; }
+        dnorm=Math.sqrt(dnorm)||1; scores[d]=dot/(qNorm*dnorm);
       }
-      // top-3
-      return Array.from(scores.map((s,i)=>({i,s}))).sort((a,b)=>b.s-a.s).slice(0,3);
+      return Array.from(scores.map((s,i)=>({i,s}))).sort((a,b)=>b.s-a.s).slice(0,4);
     }
 
-    // --- run ---
     await loadKnowledge();
     buildIndex();
 
+    // --- 3) LLM local optionnel (WebLLM), avec repli élégant
+    let engine=null; let llmReady=false;
+    async function enableLLM(){
+      btnLLM.disabled=true; llmState.textContent='LLM : chargement…';
+      try{
+        const { CreateMLCEngine, prebuiltAppConfig } = await import('https://esm.run/@mlc-ai/web-llm');
+        const wanted = 'TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC';
+        const ok = (prebuiltAppConfig?.model_list||[]).some(m=>m.model_id===wanted);
+        if(!ok) throw new Error('Modèle indisponible dans la config');
+        engine = await CreateMLCEngine(wanted, { initProgressCallback:(p)=>{ statusEl.textContent = p.text || '…'; } });
+        llmReady=true; llmState.textContent='LLM : prêt (TinyLlama)'; statusEl.textContent='Prêt.';
+      }catch(e){
+        llmReady=false; llmState.textContent='LLM : indisponible (fallback)'; statusEl.textContent='Mode chat sans LLM.'; debugEl.style.display='block'; debugEl.textContent = (e?.message||String(e));
+      } finally {
+        btnLLM.disabled=false;
+      }
+    }
+    btnLLM.addEventListener('click', enableLLM);
+
+    function composeAnswer(hits, question){
+      if(!hits.length) return "Je n'ai pas trouvé d'extrait pertinent dans le document.";
+      // Petite synthèse "humaine" à partir des extraits (sans LLM)
+      const s = hits.map(h=>docs[h.i]).join(' ');
+      // Heuristique: prendre 1–2 phrases utiles
+      const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>20).slice(0,2);
+      return sentences.join(' ');
+    }
+
+    async function answer(question){
+      const hits = scoreQuery(question);
+      const ctx = hits.map((h,i)=>`[${i+1}] ${docs[h.i]}`).join('\n---\n');
+      if(llmReady && engine){
+        const sys = `Tu es Snow, un petit chat. Réponds à l'utilisateur UNIQUEMENT à partir des extraits suivants. Si l'information n'y est pas, dis que tu ne sais pas. Sois concis, direct, fidèle au texte.\n\nEXTRAITS:\n${ctx}`;
+        const stream = await engine.chat.completions.create({
+          messages:[{role:'system',content:sys},{role:'user',content:question}],
+          stream:true
+        });
+        let out=''; for await (const chunk of stream){ const t=chunk?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
+        return { text: out.trim(), sources: hits };
+      } else {
+        return { text: composeAnswer(hits, question), sources: hits };
+      }
+    }
+
     form.addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const q = input.value.trim();
-      if(!q) return;
-      addBubble(q, 'user');
-      input.value = '';
-      const thinking = document.createElement('div');
-      thinking.className = 'bubble bot';
-      thinking.textContent = '…';
-      messages.appendChild(thinking);
+      const q = input.value.trim(); if(!q) return;
+      addBubble(q,'user'); input.value='';
+      const thinking = addBubble('…','bot');
       try{
-        const hits = scoreQuery(q);
-        const text = hits.map((h,i)=>`[${i+1}] ${docs[h.i]}`).join('\n\n');
-        thinking.textContent = text || "(Pas d'extrait pertinent trouvé dans le document.)";
-        const src = document.createElement('div'); src.className='src'; src.textContent = "Réponse extraite de votre document (aucun stockage, aucun envoi)."; thinking.appendChild(src);
+        const res = await answer(q);
+        thinking.textContent = res.text || "(Pas d'info suffisante dans le document.)";
+        const src = document.createElement('div'); src.className='srcs';
+        const btn=document.createElement('button'); btn.type='button'; btn.className='btn'; btn.style.padding='6px 10px'; btn.style.fontSize='12px'; btn.textContent='Afficher les extraits';
+        const box=document.createElement('div'); box.style.display='none'; box.style.marginTop='6px'; box.style.fontSize='12px'; box.style.color='#6a4f5b';
+        box.textContent = res.sources.map((h,i)=>`[${i+1}] ${docs[h.i]}`).join('\n\n');
+        btn.onclick=()=>{ box.style.display = box.style.display==='none'?'block':'none'; btn.textContent = box.style.display==='none'?'Afficher les extraits':'Masquer les extraits'; };
+        src.appendChild(btn); src.appendChild(box); thinking.appendChild(src);
       }catch(err){
         thinking.textContent = "Oups, échec. Rechargez la page et réessayez.";
         debugEl.style.display='block'; debugEl.textContent = err?.message || String(err);
