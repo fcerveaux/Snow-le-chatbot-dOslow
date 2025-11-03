@@ -112,6 +112,9 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
             <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC">TinyLlama 1.1B (très léger, plus rapide)</option>
           </select>
           <div id="progress" style="margin-top:8px">Prêt à charger.</div>
+          <details style="margin-top:6px"><summary style="cursor:pointer">Diagnostic</summary>
+            <div id="diag" style="font-size:12px; color:#7a4f60; margin-top:6px">—</div>
+          </details>
           <pre id="debug" style="display:none;white-space:pre-wrap;background:#fff;border:1px solid rgba(100,60,80,.12);border-radius:12px;padding:8px;margin-top:8px;font-size:12px;color:#7a4f60"></pre>
         </div>
       </div>
@@ -128,8 +131,7 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
   </footer>
 
   <script type="module">
-    // Étape 2 (fix) : utiliser CreateMLCEngine (sans WebWorker) pour éviter l'erreur postMessage.
-    // Docs: https://webllm.mlc.ai/docs/user/basic_usage.html
+    // Étape 2 (stabilisée) : meilleure détection d'erreurs + liste des modèles dispo.
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
     import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
@@ -139,6 +141,8 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
     const loadBtn = document.getElementById('load-btn');
     const modelSelect = document.getElementById('model');
     const progress = document.getElementById('progress');
+    const debugEl = document.getElementById('debug');
+    const diag = document.getElementById('diag');
 
     function addBubble(text, who){
       const b = document.createElement('div');
@@ -148,49 +152,64 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // 0) Vérif WebGPU
+    // 0) Diagnostic rapide
     const hasWebGPU = !!navigator.gpu;
+    const ua = navigator.userAgent;
+    diag.textContent = `WebGPU: ${hasWebGPU ? 'OK' : 'ABSENT'} — UA: ${ua}`;
     if(!hasWebGPU){
       progress.innerHTML = "Votre navigateur ne supporte pas WebGPU. Essayez Chrome/Edge à jour sur ordinateur.";
       loadBtn.disabled = true;
     }
 
+    // 1) Lister les modèles connus par la lib chargée
+    function listModels(){
+      try{
+        const list = (webllm.prebuiltAppConfig?.model_list || []).map(m=>m.model_id);
+        if(list.length){
+          diag.textContent += `\nModèles disponibles: ${list.slice(0,12).join(', ')}${list.length>12?', …':''}`;
+        } else {
+          diag.textContent += "\n(Modèles non listés — le CDN ou le module ne s'est pas initialisé)";
+        }
+      }catch(e){ diag.textContent += "\n(Erreur listing modèles)"; }
+    }
+    listModels();
+
     let engine = null;
+    let lastProgressAt = Date.now();
 
     async function loadModel(){
       loadBtn.disabled = true;
       modelSelect.disabled = true;
       progress.textContent = "Préparation…";
+      debugEl.style.display = 'none';
+
+      // Watchdog: si aucun progrès en 30s, afficher une aide
+      const watchdog = setInterval(()=>{
+        if(Date.now() - lastProgressAt > 30000){
+          progress.textContent = "Chargement long… Si ça bloque, essayez l'autre modèle, désactivez les bloqueurs, ou forcez le rechargement (Ctrl/Cmd+Shift+R).";
+          lastProgressAt = Date.now();
+        }
+      }, 5000);
+
       try{
-        // Vérifier si le modèle existe dans la config intégrée
         const wanted = modelSelect.value;
-        const models = webllm.prebuiltAppConfig?.model_list?.map(m=>m.model_id) || [];
-        if(!models.includes(wanted)){
-          throw new Error(`Modèle inconnu pour WebLLM: ${wanted}. Disponibles: ` + models.slice(0,20).join(', ') + (models.length>20? ', …':''));
+        const list = webllm.prebuiltAppConfig?.model_list || [];
+        const found = list.find(m=>m.model_id===wanted);
+        if(!found){
+          throw new Error(`Modèle inconnu: ${wanted}. Dispos: ${list.map(m=>m.model_id).slice(0,20).join(', ')}`);
         }
         engine = await CreateMLCEngine(
           wanted,
-          { initProgressCallback: (p) => { progress.textContent = p.text || "…"; } }
+          { initProgressCallback: (p) => { lastProgressAt = Date.now(); progress.textContent = p.text || "…"; } }
         );
+        clearInterval(watchdog);
         progress.textContent = "Snow est prêt. Pose une question.";
       }catch(e){
+        clearInterval(watchdog);
         console.error(e);
-        progress.textContent = "Échec du chargement. Essaie l'autre modèle, rafraîchis la page, ou désactive temporairement les bloqueurs.";
-        const dbg = document.getElementById('debug');
-        dbg.style.display = 'block';
-        dbg.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
-        loadBtn.disabled = false;
-        modelSelect.disabled = false;
-      }
-    } }
-        );
-        progress.textContent = "Snow est prêt. Pose une question.";
-      }catch(e){
-        console.error(e);
-        progress.textContent = "Échec du chargement. Essaie l'autre modèle, rafraîchis la page, ou désactive temporairement les bloqueurs.";
-        const dbg = document.getElementById('debug');
-        dbg.style.display = 'block';
-        dbg.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
+        progress.textContent = "Échec du chargement.";
+        debugEl.style.display = 'block';
+        debugEl.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
         loadBtn.disabled = false;
         modelSelect.disabled = false;
       }
@@ -232,7 +251,7 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
         const reply = await askLLM(text);
         thinking.textContent = reply || "(Je n'ai pas compris, réessaie en reformulant.)";
       }catch(err){
-        thinking.textContent = "Clique d'abord sur ‘Charger Snow’, puis repose ta question.";
+        thinking.textContent = "Clique d'abord sur ‘Charger Snow’ (et attends ‘Snow est prêt’), puis repose ta question.";
         console.error(err);
       }
     });
