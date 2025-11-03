@@ -1,0 +1,147 @@
+<!--
+SNOW — Étape 1 : squelette de la page (UI mignonne, rose), sans logique LLM encore.
+But de cette étape : publier une page GitHub Pages avec l'interface et l'avis RGPD.
+Étape suivante : brancher WebLLM + embeddings.json.
+-->
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snow — le petit chat</title>
+  <meta name="description" content="Snow, petit chat qui répond aux questions à partir d'un document de référence — le tout dans votre navigateur." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --rose-bg: #f7e6ec;        /* rose tendre */
+      --rose-100:#fdeff4;
+      --rose-200:#f9dbe6;
+      --rose-300:#f2c3d6;
+      --rose-400:#e3a7c3;        /* vieux rose */
+      --text:#3f2d38;
+      --muted:#6a4f5b;
+      --white:#ffffff;
+      --shadow: 0 10px 30px rgba(100, 60, 80, .15);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+      color:var(--text);
+      background: radial-gradient(1200px 800px at 10% -10%, var(--rose-200), transparent),
+                  radial-gradient(1200px 800px at 110% 10%, var(--rose-100), transparent),
+                  var(--rose-bg);
+      display:flex; flex-direction:column;
+    }
+    header{
+      max-width: 900px; margin: 24px auto 0; padding: 0 16px;
+    }
+    .brand{
+      display:flex; align-items:center; gap:14px;
+    }
+    .avatar{
+      width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg, var(--rose-400), var(--rose-200));
+      box-shadow: var(--shadow); position:relative; overflow:hidden;
+    }
+    /* petit chat stylisé */
+    .avatar:before, .avatar:after{content:""; position:absolute; background:var(--white)}
+    .avatar:before{ width:18px; height:18px; border-radius:50%; top:18px; left:12px; box-shadow:24px 0 0 var(--white);} /* yeux */
+    .avatar:after{ width:16px; height:10px; border-radius:10px 10px 0 0; bottom:10px; left:18px; box-shadow:20px 0 0 var(--white);} /* moustaches stylisées */
+    .title{font-family: "Kaisei Decol", serif; font-weight:700; font-size:28px; letter-spacing:.3px;}
+    .subtitle{color:var(--muted); font-size:14px; margin-top:2px}
+
+    main{flex:1; display:flex;}
+    .container{max-width:900px; width:100%; margin: 16px auto; padding: 0 16px; display:grid; grid-template-rows:auto 1fr auto; gap:16px}
+
+    .chatbox{
+      background:var(--white); border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 16px; display:flex; flex-direction:column; gap:16px; min-height: 55vh;
+      border:1px solid rgba(100,60,80,.08);
+    }
+    .messages{ display:flex; flex-direction:column; gap:12px; overflow:auto; scroll-behavior:smooth; padding: 6px; }
+    .bubble{ max-width: 80%; padding: 12px 14px; border-radius: 16px; line-height:1.4; font-size:15px; box-shadow: 0 4px 16px rgba(60,30,40,.06)}
+    .user{ align-self:flex-end; background: var(--rose-300); color:#3b2431; border:1px solid rgba(100,60,80,.15)}
+    .bot{ align-self:flex-start; background: #fff; border:1px solid rgba(100,60,80,.12)}
+    .hint{ font-size: 13px; color:var(--muted); text-align:center; }
+
+    form.ask{
+      display:flex; gap:10px; align-items:center; background: var(--white); padding:10px; border-radius: var(--radius); box-shadow: var(--shadow);
+      border:1px solid rgba(100,60,80,.08);
+    }
+    .input{
+      flex:1; background:#fff; border: 1px solid rgba(100,60,80,.18); padding: 12px 14px; border-radius: 12px; font-size:15px;
+      outline:none; box-shadow: inset 0 1px 3px rgba(60,30,40,.04);
+    }
+    .btn{
+      background: linear-gradient(135deg, var(--rose-400), var(--rose-300)); color:#3f1630; border:none; padding: 12px 14px; border-radius: 14px; font-weight: 700; cursor:pointer;
+      transition: transform .06s ease; box-shadow: 0 6px 18px rgba(227,167,195,.35);
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    footer{
+      max-width:900px; margin: 0 auto 24px; padding: 0 16px; color:var(--muted); font-size:12px; text-align:center;
+    }
+    .badge{ display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="avatar" aria-hidden="true"></div>
+      <div>
+        <div class="title">Snow <span aria-hidden="true">🐾</span></div>
+        <div class="subtitle">Petit chat qui répond à vos questions — tout se passe <strong>dans votre navigateur</strong>.</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <div class="chatbox" role="region" aria-live="polite">
+        <div id="messages" class="messages">
+          <div class="bubble bot">Bonjour ! Je suis Snow. Posez-moi une question&nbsp;:)</div>
+        </div>
+        <div class="hint">Étape 1 — l'interface est prête. À l'étape suivante, je commencerai à répondre.</div>
+      </div>
+
+      <form class="ask" id="ask-form">
+        <input id="q" class="input" placeholder="Votre question…" autocomplete="off" />
+        <button class="btn" type="submit">Envoyer</button>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    <span class="badge">Confidentialité&nbsp;: tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
+  </footer>
+
+  <script type="module">
+    // Étape 1 : just UI — on empile les messages sans appeler de modèle.
+    const form = document.getElementById('ask-form');
+    const input = document.getElementById('q');
+    const messages = document.getElementById('messages');
+
+    function addBubble(text, who){
+      const b = document.createElement('div');
+      b.className = `bubble ${who}`;
+      b.textContent = text;
+      messages.appendChild(b);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const text = input.value.trim();
+      if(!text) return;
+      addBubble(text, 'user');
+      input.value = '';
+      // Placeholder pour l'étape 2 (génération) :
+      addBubble('Merci ! Dans l\'étape suivante, je répondrai depuis le PDF. 🐾', 'bot');
+    });
+  </script>
+</body>
+</html>
