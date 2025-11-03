@@ -1,8 +1,3 @@
-<!--
-SNOW — Étape 1 : squelette de la page (UI mignonne, rose), sans logique LLM encore.
-But de cette étape : publier une page GitHub Pages avec l'interface et l'avis RGPD.
-Étape suivante : brancher WebLLM + embeddings.json.
--->
 <!doctype html>
 <html lang="fr">
 <head>
@@ -94,7 +89,7 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">Petit chat qui répond à vos questions — tout se passe <strong>dans votre navigateur</strong>. Si rien ne se passe, cliquez sur <em>Charger Snow</em> ci‑dessous.</div>
+        <div class="subtitle">Petit chat qui répond à vos questions — tout se passe <strong>dans votre navigateur</strong>. Si rien ne se passe, cliquez sur <em>Charger Snow</em> ci-dessous.</div>
       </div>
     </div>
   </header>
@@ -131,11 +126,18 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
   </footer>
 
   <script type="module">
-    // Étape 4 : brancher embeddings.json (RAG 100% navigateur)
-    // - Charge le LLM (WebLLM)
-    // - Charge les embeddings + encodeur (Transformers.js)
-    // - À chaque question : retrieve top-k et Snow répond UNIQUEMENT depuis le PDF
+    // Filet de sécurité : surface les erreurs JS dans la page
+    window.addEventListener('error', (e) => {
+      const debugEl = document.getElementById('debug');
+      const progress = document.getElementById('progress');
+      if (debugEl && progress) {
+        progress.textContent = 'Erreur de script. Voir détails ci-dessous.';
+        debugEl.style.display = 'block';
+        debugEl.textContent = (e?.error?.stack || e.message || e.toString());
+      }
+    });
 
+    // Étape 4 : RAG 100% navigateur (LLM WebLLM + embeddings)
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
     import * as webllm from "https://esm.run/@mlc-ai/web-llm";
     import { pipeline } from "https://esm.run/@xenova/transformers";
@@ -157,12 +159,12 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // --- utils cosinus ---
+    // utils cosinus
     const dot = (a,b)=>{ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; };
     const norm = (a)=>Math.sqrt(dot(a,a))||1;
     const cos = (a,b)=>dot(a,b)/(norm(a)*norm(b));
 
-    // 0) Diagnostic rapide
+    // Diagnostic rapide
     const hasWebGPU = !!navigator.gpu;
     const ua = navigator.userAgent;
     diag.textContent = `WebGPU: ${hasWebGPU ? 'OK' : 'ABSENT'} — UA: ${ua}`;
@@ -171,19 +173,18 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       loadBtn.disabled = true;
     }
 
-    // 1) Lister les modèles connus par la lib chargée
+    // Lister les modèles connus par la lib chargée
     function listModels(){
       try{
         const list = (webllm.prebuiltAppConfig?.model_list || []).map(m=>m.model_id);
         if(list.length){
-          diag.textContent += `
-Modèles disponibles: ${list.slice(0,12).join(', ')}${list.length>12?', …':''}`;
+          diag.textContent += `\nModèles disponibles: ${list.slice(0,12).join(', ')}${list.length>12?', …':''}`;
         } else {
-          diag.textContent += "
-(Modèles non listés — le CDN ou le module ne s'est pas initialisé)";
+          diag.textContent += "\n(Modèles non listés — le CDN ou le module ne s'est pas initialisé)";
         }
-      }catch(e){ diag.textContent += "
-(Erreur listing modèles)"; }
+      }catch(e){
+        diag.textContent += "\n(Erreur listing modèles)";
+      }
     }
     listModels();
 
@@ -281,13 +282,8 @@ Modèles disponibles: ${list.slice(0,12).join(', ')}${list.length>12?', …':''}
       if(!kb || !embedder) throw new Error("Connaissances non prêtes (embeddings)");
       const qVec = await embed(question);
       const top = topKScored(qVec, 4);
-      const ctx = top.map((x,i)=>`[${i+1}] ${x.text}`).join('
----
-');
-      const sys = `Tu es Snow, un petit chat. Ta mission: répondre UNIQUEMENT à partir des extraits ci-dessous (issus du document de référence). Si l'information manque, dis clairement que tu ne sais pas. Sois concis, direct et fidèle au texte.
-
-=== EXTRATS SÉLECTIONNÉS ===
-${ctx}`;
+      const ctx = top.map((x,i)=>`[${i+1}] ${x.text}`).join('\n---\n');
+      const sys = `Tu es Snow, un petit chat. Ta mission: répondre UNIQUEMENT à partir des extraits ci-dessous (issus du document de référence). Si l'information manque, dis clairement que tu ne sais pas. Sois concis, direct et fidèle au texte.\n\n=== EXTRATS SÉLECTIONNÉS ===\n${ctx}`;
 
       const stream = await engine.chat.completions.create({
         messages: [
