@@ -120,7 +120,11 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
   </footer>
 
   <script type="module">
-    // Étape 1 : just UI — on empile les messages sans appeler de modèle.
+    // Étape 2 : branchement d'un petit modèle LLM dans le navigateur (WebLLM).
+    // Objectif : Snow répond (sans le PDF pour l'instant). Aucune donnée n'est envoyée ni stockée.
+
+    import { CreateWebWorkerMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
     const messages = document.getElementById('messages');
@@ -133,14 +137,54 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       messages.scrollTop = messages.scrollHeight;
     }
 
-    form.addEventListener('submit', (e)=>{
+    // 1) Charger un petit modèle pour démarrer vite.
+    const status = document.querySelector('.hint');
+    status.textContent = "Chargement du cerveau de Snow… (peut prendre 30–90 s la première fois)";
+
+    const engine = await CreateWebWorkerMLCEngine(
+      // Modèle léger : bonne compatibilité WebGPU + taille raisonnable
+      { model: "Qwen2.5-1.5B-Instruct-q4f16_1" },
+      { initProgressCallback: (p) => { status.textContent = p.text; } }
+    );
+
+    status.textContent = "Snow est prêt ! Pose une question.";
+
+    async function askLLM(question){
+      const sys = `Tu es Snow, un petit chat doux et direct. Réponds de manière concise et claire. Si tu ne sais pas, dis-le.`;
+      const stream = await engine.chat.completions.create({
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: question }
+        ],
+        stream: true
+      });
+      let out = "";
+      for await (const chunk of stream){
+        const token = chunk?.choices?.[0]?.delta?.content || "";
+        if(token){ out += token; }
+      }
+      return out.trim();
+    }
+
+    form.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const text = input.value.trim();
       if(!text) return;
       addBubble(text, 'user');
       input.value = '';
-      // Placeholder pour l'étape 2 (génération) :
-      addBubble('Merci ! Dans l\'étape suivante, je répondrai depuis le PDF. 🐾', 'bot');
+      const thinking = document.createElement('div');
+      thinking.className = 'bubble bot';
+      thinking.textContent = '…';
+      messages.appendChild(thinking);
+      messages.scrollTop = messages.scrollHeight;
+
+      try{
+        const reply = await askLLM(text);
+        thinking.textContent = reply || "(Je n'ai pas compris, réessaie en reformulant.)";
+      }catch(err){
+        thinking.textContent = "Oups, je n'ai pas réussi à répondre. Réessaie.";
+        console.error(err);
+      }
     });
   </script>
 </body>
