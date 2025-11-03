@@ -108,8 +108,8 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
         <div class="hint">
           <button id="load-btn" class="btn" type="button">Charger Snow</button>
           <select id="model" class="input" style="max-width:320px">
-            <option value="Qwen2.5-1.5B-Instruct-q4f16_1">Qwen 1.5B (petit, qualité OK)</option>
-            <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1">TinyLlama 1.1B (très léger, plus rapide)</option>
+            <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen 1.5B (petit, qualité OK)</option>
+            <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC">TinyLlama 1.1B (très léger, plus rapide)</option>
           </select>
           <div id="progress" style="margin-top:8px">Prêt à charger.</div>
           <pre id="debug" style="display:none;white-space:pre-wrap;background:#fff;border:1px solid rgba(100,60,80,.12);border-radius:12px;padding:8px;margin-top:8px;font-size:12px;color:#7a4f60"></pre>
@@ -131,6 +131,7 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
     // Étape 2 (fix) : utiliser CreateMLCEngine (sans WebWorker) pour éviter l'erreur postMessage.
     // Docs: https://webllm.mlc.ai/docs/user/basic_usage.html
     import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
@@ -161,10 +162,27 @@ But de cette étape : publier une page GitHub Pages avec l'interface et l'avis R
       modelSelect.disabled = true;
       progress.textContent = "Préparation…";
       try{
-        const model = modelSelect.value;
+        // Vérifier si le modèle existe dans la config intégrée
+        const wanted = modelSelect.value;
+        const models = webllm.prebuiltAppConfig?.model_list?.map(m=>m.model_id) || [];
+        if(!models.includes(wanted)){
+          throw new Error(`Modèle inconnu pour WebLLM: ${wanted}. Disponibles: ` + models.slice(0,20).join(', ') + (models.length>20? ', …':''));
+        }
         engine = await CreateMLCEngine(
-          model,
+          wanted,
           { initProgressCallback: (p) => { progress.textContent = p.text || "…"; } }
+        );
+        progress.textContent = "Snow est prêt. Pose une question.";
+      }catch(e){
+        console.error(e);
+        progress.textContent = "Échec du chargement. Essaie l'autre modèle, rafraîchis la page, ou désactive temporairement les bloqueurs.";
+        const dbg = document.getElementById('debug');
+        dbg.style.display = 'block';
+        dbg.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
+        loadBtn.disabled = false;
+        modelSelect.disabled = false;
+      }
+    } }
         );
         progress.textContent = "Snow est prêt. Pose une question.";
       }catch(e){
