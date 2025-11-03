@@ -3,15 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — mode Lite (sans WebGPU)</title>
+  <title>Snow — mode Ultra‑Lite (TF‑IDF)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
   <style>
-    :root{
-      --rose-bg:#f7e6ec; --rose-100:#fdeff4; --rose-200:#f9dbe6; --rose-300:#f2c3d6; --rose-400:#e3a7c3;
-      --text:#3f2d38; --muted:#6a4f5b; --white:#fff; --radius:18px; --shadow:0 10px 30px rgba(100,60,80,.15);
-    }
+    :root{ --rose-bg:#f7e6ec; --rose-100:#fdeff4; --rose-200:#f9dbe6; --rose-300:#f2c3d6; --rose-400:#e3a7c3; --text:#3f2d38; --muted:#6a4f5b; --white:#fff; --radius:18px; --shadow:0 10px 30px rgba(100,60,80,.15) }
     *{box-sizing:border-box}
     body{margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text);
       background: radial-gradient(1200px 800px at 10% -10%, var(--rose-200), transparent), radial-gradient(1200px 800px at 110% 10%, var(--rose-100), transparent), var(--rose-bg);
@@ -37,6 +34,8 @@
     .btn{background:linear-gradient(135deg,var(--rose-400),var(--rose-300)); color:#3f1630; border:none; padding:12px 14px; border-radius:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(227,167,195,.35)}
     footer{max-width:900px; margin:0 auto 24px; padding:0 16px; color:var(--muted); font-size:12px; text-align:center}
     .badge{display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
+    details{font-size:12px; color:var(--muted)}
+    pre.debug{white-space:pre-wrap;background:#fff;border:1px solid rgba(100,60,80,.12);border-radius:12px;padding:8px;margin-top:8px;font-size:12px;color:#7a4f60;display:none}
   </style>
 </head>
 <body>
@@ -45,7 +44,7 @@
       <div class="avatar" aria-hidden="true"></div>
       <div>
         <div class="title">Snow <span aria-hidden="true">🐾</span></div>
-        <div class="subtitle">Mode Lite : réponses extraites du document (sans LLM, 100% navigateur).</div>
+        <div class="subtitle">Mode Ultra‑Lite : recherche sémantique simple (TF‑IDF), 100% navigateur.</div>
       </div>
     </div>
   </header>
@@ -54,9 +53,13 @@
     <div class="container">
       <div class="chatbox" role="region" aria-live="polite">
         <div id="messages" class="messages">
-          <div class="bubble bot">Bonjour ! Je suis Snow (mode Lite). Pose-moi une question, je te renverrai les passages les plus pertinents de ton document.</div>
+          <div class="bubble bot">Bonjour ! Je suis Snow (mode Ultra‑Lite). Pose-moi une question, je te renverrai les passages les plus pertinents du document.</div>
         </div>
         <div class="bubble bot" id="status">Chargement des connaissances…</div>
+        <details style="margin-top:6px"><summary>Diagnostic</summary>
+          <div id="diag">—</div>
+          <pre id="debug" class="debug"></pre>
+        </details>
       </div>
 
       <form class="ask" id="ask-form">
@@ -67,16 +70,16 @@
   </main>
 
   <footer>
-    <span class="badge">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
+    <span class="badge">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
   </footer>
 
   <script type="module">
-    import { pipeline } from "https://esm.run/@xenova/transformers";
-
     const messages = document.getElementById('messages');
     const status = document.getElementById('status');
     const form = document.getElementById('ask-form');
     const input = document.getElementById('q');
+    const debugEl = document.getElementById('debug');
+    const diag = document.getElementById('diag');
 
     function addBubble(text, who){
       const b = document.createElement('div');
@@ -86,44 +89,100 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // Cosine utils
-    const dot = (a,b)=>{ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; };
-    const norm = (a)=>Math.sqrt(dot(a,a))||1;
-    const cos = (a,b)=>dot(a,b)/(norm(a)*norm(b));
-
-    // 1) Charger embeddings.json
-    let kb = [];
-    try{
-      const res = await fetch('./embeddings.json');
-      if(!res.ok) throw new Error(`embeddings.json introuvable (${res.status})`);
-      kb = await res.json();
-    }catch(err){
-      status.textContent = "Erreur: impossible de charger embeddings.json (placez-le à la racine du dépôt).";
-      throw err;
+    // --- utils texte ---
+    const stripAccents = (s)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    function tokenize(s){
+      return stripAccents(s.toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').split(/\s+/).filter(w=>w.length>1);
     }
 
-    // 2) Démarrer l'encodeur d'embeddings côté client (CPU/WASM)
-    status.textContent = "Initialisation de l'encodeur…";
-    const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-    status.textContent = `Connaissances prêtes (${kb.length} passages).`;
+    // --- charge connaissances ---
+    let docs = []; // tableau de strings (passages)
 
-    function topK(question, k=3){
-      return embedder(question, { normalize: true }).then(t => {
-        // mean pooling
-        const dims = t.dims[t.dims.length-1];
-        const tokens = t.data.length / dims;
-        const q = new Float32Array(dims);
-        for(let tok=0; tok<tokens; tok++){
-          for(let d=0; d<dims; d++) q[d] += t.data[tok*dims + d];
+    async function loadKnowledge(){
+      try{
+        // 1) on tente embeddings.json (pour récupérer au moins les textes)
+        const r = await fetch('./embeddings.json');
+        if(r.ok){
+          const kb = await r.json();
+          docs = kb.map(x=>x.text).filter(Boolean);
+          status.textContent = `Connaissances chargées (${docs.length} passages).`;
+          return;
         }
-        for(let d=0; d<dims; d++) q[d] /= tokens || 1;
-        let n=0; for(let d=0; d<dims; d++) n+=q[d]*q[d]; n=Math.sqrt(n)||1; for(let d=0; d<dims; d++) q[d]/=n;
-
-        const scored = kb.map(ch=>({ text: ch.text, score: cos(q, ch.vector) }));
-        scored.sort((a,b)=>b.score-a.score);
-        return scored.slice(0,k);
-      });
+        // 2) fallback: corpus.txt si présent
+        const r2 = await fetch('./corpus.txt');
+        if(r2.ok){
+          const raw = await r2.text();
+          // découpe simple en paragraphes
+          docs = raw.split(/\n\n+/).map(s=>s.trim()).filter(s=>s.length>30);
+          status.textContent = `Connaissances chargées depuis corpus.txt (${docs.length} passages).`;
+          return;
+        }
+        throw new Error('Ni embeddings.json ni corpus.txt disponibles.');
+      }catch(e){
+        status.textContent = 'Erreur: impossible de charger les connaissances.';
+        debugEl.style.display = 'block';
+        debugEl.textContent = e?.message || String(e);
+        throw e;
+      }
     }
+
+    // --- indexation TF-IDF ---
+    let vocab = new Map(); // mot -> id
+    let df = [];           // doc frequency par terme id
+    let D = 0;             // nombre de documents
+    let docTerms = [];     // tableau de Map(termeId -> tf)
+
+    function buildIndex(){
+      D = docs.length; vocab.clear(); df = []; docTerms = [];
+      docs.forEach((text, idx)=>{
+        const terms = tokenize(text);
+        const tf = new Map();
+        for(const w of terms){ tf.set(w, (tf.get(w)||0)+1); }
+        const unique = new Set(terms);
+        for(const w of unique){
+          if(!vocab.has(w)) vocab.set(w, vocab.size);
+          const id = vocab.get(w);
+          df[id] = (df[id]||0) + 1;
+        }
+        docTerms[idx] = tf;
+      });
+      diag.textContent = `Index: ${vocab.size} termes, ${D} passages.`;
+    }
+
+    function scoreQuery(q){
+      const qTerms = tokenize(q);
+      const qtf = new Map(); for(const w of qTerms){ qtf.set(w,(qtf.get(w)||0)+1); }
+      // tf-idf pour la requête
+      const qVec = new Map();
+      for(const [w, f] of qtf){
+        const id = vocab.get(w); if(id===undefined) continue;
+        const idf = Math.log((D+1)/((df[id]||0)+1)) + 1; // lissage
+        qVec.set(id, f * idf);
+      }
+      const qNorm = Math.sqrt(Array.from(qVec.values()).reduce((s,v)=>s+v*v,0)) || 1;
+
+      // scores documents
+      const scores = new Array(D).fill(0);
+      for(let d=0; d<D; d++){
+        let dot=0, dnorm=0;
+        // calc tf-idf doc
+        for(const [w, f] of docTerms[d]){
+          const id = vocab.get(w); if(id===undefined) continue;
+          const idf = Math.log((D+1)/((df[id]||0)+1)) + 1;
+          const val = f * idf;
+          dnorm += val*val;
+          const qv = qVec.get(id); if(qv) dot += qv * val;
+        }
+        dnorm = Math.sqrt(dnorm)||1;
+        scores[d] = dot/(qNorm*dnorm);
+      }
+      // top-3
+      return Array.from(scores.map((s,i)=>({i,s}))).sort((a,b)=>b.s-a.s).slice(0,3);
+    }
+
+    // --- run ---
+    await loadKnowledge();
+    buildIndex();
 
     form.addEventListener('submit', async (e)=>{
       e.preventDefault();
@@ -131,22 +190,18 @@
       if(!q) return;
       addBubble(q, 'user');
       input.value = '';
-
       const thinking = document.createElement('div');
       thinking.className = 'bubble bot';
       thinking.textContent = '…';
       messages.appendChild(thinking);
-
       try{
-        const hits = await topK(q, 3);
-        const text = hits.map((h,i)=>`[${i+1}] ${h.text}`).join('\n\n');
+        const hits = scoreQuery(q);
+        const text = hits.map((h,i)=>`[${i+1}] ${docs[h.i]}`).join('\n\n');
         thinking.textContent = text || "(Pas d'extrait pertinent trouvé dans le document.)";
-        const src = document.createElement('div');
-        src.className = 'src';
-        src.textContent = "Réponse extraite de votre document (aucun stockage, aucun envoi).";
-        thinking.appendChild(src);
+        const src = document.createElement('div'); src.className='src'; src.textContent = "Réponse extraite de votre document (aucun stockage, aucun envoi)."; thinking.appendChild(src);
       }catch(err){
         thinking.textContent = "Oups, échec. Rechargez la page et réessayez.";
+        debugEl.style.display='block'; debugEl.textContent = err?.message || String(err);
         console.error(err);
       }
     });
