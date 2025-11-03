@@ -1,0 +1,260 @@
+<!--
+SNOW — Étape 1 : squelette de la page (UI mignonne, rose), sans logique LLM encore.
+But de cette étape : publier une page GitHub Pages avec l'interface et l'avis RGPD.
+Étape suivante : brancher WebLLM + embeddings.json.
+-->
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snow — le petit chat</title>
+  <meta name="description" content="Snow, petit chat qui répond aux questions à partir d'un document de référence — le tout dans votre navigateur." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --rose-bg: #f7e6ec;        /* rose tendre */
+      --rose-100:#fdeff4;
+      --rose-200:#f9dbe6;
+      --rose-300:#f2c3d6;
+      --rose-400:#e3a7c3;        /* vieux rose */
+      --text:#3f2d38;
+      --muted:#6a4f5b;
+      --white:#ffffff;
+      --shadow: 0 10px 30px rgba(100, 60, 80, .15);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+      color:var(--text);
+      background: radial-gradient(1200px 800px at 10% -10%, var(--rose-200), transparent),
+                  radial-gradient(1200px 800px at 110% 10%, var(--rose-100), transparent),
+                  var(--rose-bg);
+      display:flex; flex-direction:column;
+    }
+    header{
+      max-width: 900px; margin: 24px auto 0; padding: 0 16px;
+    }
+    .brand{
+      display:flex; align-items:center; gap:14px;
+    }
+    .avatar{
+      width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg, var(--rose-400), var(--rose-200));
+      box-shadow: var(--shadow); position:relative; overflow:hidden;
+    }
+    /* petit chat stylisé */
+    .avatar:before, .avatar:after{content:""; position:absolute; background:var(--white)}
+    .avatar:before{ width:18px; height:18px; border-radius:50%; top:18px; left:12px; box-shadow:24px 0 0 var(--white);} /* yeux */
+    .avatar:after{ width:16px; height:10px; border-radius:10px 10px 0 0; bottom:10px; left:18px; box-shadow:20px 0 0 var(--white);} /* moustaches stylisées */
+    .title{font-family: "Kaisei Decol", serif; font-weight:700; font-size:28px; letter-spacing:.3px;}
+    .subtitle{color:var(--muted); font-size:14px; margin-top:2px}
+
+    main{flex:1; display:flex;}
+    .container{max-width:900px; width:100%; margin: 16px auto; padding: 0 16px; display:grid; grid-template-rows:auto 1fr auto; gap:16px}
+
+    .chatbox{
+      background:var(--white); border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 16px; display:flex; flex-direction:column; gap:16px; min-height: 55vh;
+      border:1px solid rgba(100,60,80,.08);
+    }
+    .messages{ display:flex; flex-direction:column; gap:12px; overflow:auto; scroll-behavior:smooth; padding: 6px; }
+    .bubble{ max-width: 80%; padding: 12px 14px; border-radius: 16px; line-height:1.4; font-size:15px; box-shadow: 0 4px 16px rgba(60,30,40,.06)}
+    .user{ align-self:flex-end; background: var(--rose-300); color:#3b2431; border:1px solid rgba(100,60,80,.15)}
+    .bot{ align-self:flex-start; background: #fff; border:1px solid rgba(100,60,80,.12)}
+    .hint{ font-size: 13px; color:var(--muted); text-align:center; }
+
+    form.ask{
+      display:flex; gap:10px; align-items:center; background: var(--white); padding:10px; border-radius: var(--radius); box-shadow: var(--shadow);
+      border:1px solid rgba(100,60,80,.08);
+    }
+    .input{
+      flex:1; background:#fff; border: 1px solid rgba(100,60,80,.18); padding: 12px 14px; border-radius: 12px; font-size:15px;
+      outline:none; box-shadow: inset 0 1px 3px rgba(60,30,40,.04);
+    }
+    .btn{
+      background: linear-gradient(135deg, var(--rose-400), var(--rose-300)); color:#3f1630; border:none; padding: 12px 14px; border-radius: 14px; font-weight: 700; cursor:pointer;
+      transition: transform .06s ease; box-shadow: 0 6px 18px rgba(227,167,195,.35);
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    footer{
+      max-width:900px; margin: 0 auto 24px; padding: 0 16px; color:var(--muted); font-size:12px; text-align:center;
+    }
+    .badge{ display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(227,167,195,.28); border:1px solid rgba(100,60,80,.12)}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="avatar" aria-hidden="true"></div>
+      <div>
+        <div class="title">Snow <span aria-hidden="true">🐾</span></div>
+        <div class="subtitle">Petit chat qui répond à vos questions — tout se passe <strong>dans votre navigateur</strong>. Si rien ne se passe, cliquez sur <em>Charger Snow</em> ci‑dessous.</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <div class="chatbox" role="region" aria-live="polite">
+        <div id="messages" class="messages">
+          <div class="bubble bot">Bonjour ! Je suis Snow. Posez-moi une question&nbsp;:)</div>
+        </div>
+        <div class="hint">
+          <button id="load-btn" class="btn" type="button">Charger Snow</button>
+          <select id="model" class="input" style="max-width:320px">
+            <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen 1.5B (petit, qualité OK)</option>
+            <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC">TinyLlama 1.1B (très léger, plus rapide)</option>
+          </select>
+          <div id="progress" style="margin-top:8px">Prêt à charger.</div>
+          <details style="margin-top:6px"><summary style="cursor:pointer">Diagnostic</summary>
+            <div id="diag" style="font-size:12px; color:#7a4f60; margin-top:6px">—</div>
+          </details>
+          <pre id="debug" style="display:none;white-space:pre-wrap;background:#fff;border:1px solid rgba(100,60,80,.12);border-radius:12px;padding:8px;margin-top:8px;font-size:12px;color:#7a4f60"></pre>
+        </div>
+      </div>
+
+      <form class="ask" id="ask-form">
+        <input id="q" class="input" placeholder="Votre question…" autocomplete="off" />
+        <button class="btn" type="submit">Envoyer</button>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    <span class="badge">Confidentialité&nbsp;: tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
+  </footer>
+
+  <script type="module">
+    // Étape 2 (stabilisée) : meilleure détection d'erreurs + liste des modèles dispo.
+    import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+    const form = document.getElementById('ask-form');
+    const input = document.getElementById('q');
+    const messages = document.getElementById('messages');
+    const loadBtn = document.getElementById('load-btn');
+    const modelSelect = document.getElementById('model');
+    const progress = document.getElementById('progress');
+    const debugEl = document.getElementById('debug');
+    const diag = document.getElementById('diag');
+
+    function addBubble(text, who){
+      const b = document.createElement('div');
+      b.className = `bubble ${who}`;
+      b.textContent = text;
+      messages.appendChild(b);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // 0) Diagnostic rapide
+    const hasWebGPU = !!navigator.gpu;
+    const ua = navigator.userAgent;
+    diag.textContent = `WebGPU: ${hasWebGPU ? 'OK' : 'ABSENT'} — UA: ${ua}`;
+    if(!hasWebGPU){
+      progress.innerHTML = "Votre navigateur ne supporte pas WebGPU. Essayez Chrome/Edge à jour sur ordinateur.";
+      loadBtn.disabled = true;
+    }
+
+    // 1) Lister les modèles connus par la lib chargée
+    function listModels(){
+      try{
+        const list = (webllm.prebuiltAppConfig?.model_list || []).map(m=>m.model_id);
+        if(list.length){
+          diag.textContent += `\nModèles disponibles: ${list.slice(0,12).join(', ')}${list.length>12?', …':''}`;
+        } else {
+          diag.textContent += "\n(Modèles non listés — le CDN ou le module ne s'est pas initialisé)";
+        }
+      }catch(e){ diag.textContent += "\n(Erreur listing modèles)"; }
+    }
+    listModels();
+
+    let engine = null;
+    let lastProgressAt = Date.now();
+
+    async function loadModel(){
+      loadBtn.disabled = true;
+      modelSelect.disabled = true;
+      progress.textContent = "Préparation…";
+      debugEl.style.display = 'none';
+
+      // Watchdog: si aucun progrès en 30s, afficher une aide
+      const watchdog = setInterval(()=>{
+        if(Date.now() - lastProgressAt > 30000){
+          progress.textContent = "Chargement long… Si ça bloque, essayez l'autre modèle, désactivez les bloqueurs, ou forcez le rechargement (Ctrl/Cmd+Shift+R).";
+          lastProgressAt = Date.now();
+        }
+      }, 5000);
+
+      try{
+        const wanted = modelSelect.value;
+        const list = webllm.prebuiltAppConfig?.model_list || [];
+        const found = list.find(m=>m.model_id===wanted);
+        if(!found){
+          throw new Error(`Modèle inconnu: ${wanted}. Dispos: ${list.map(m=>m.model_id).slice(0,20).join(', ')}`);
+        }
+        engine = await CreateMLCEngine(
+          wanted,
+          { initProgressCallback: (p) => { lastProgressAt = Date.now(); progress.textContent = p.text || "…"; } }
+        );
+        clearInterval(watchdog);
+        progress.textContent = "Snow est prêt. Pose une question.";
+      }catch(e){
+        clearInterval(watchdog);
+        console.error(e);
+        progress.textContent = "Échec du chargement.";
+        debugEl.style.display = 'block';
+        debugEl.textContent = (e && (e.message || e.toString())) || 'Erreur inconnue';
+        loadBtn.disabled = false;
+        modelSelect.disabled = false;
+      }
+    }
+
+    loadBtn.addEventListener('click', loadModel);
+
+    async function askLLM(question){
+      if(!engine){ throw new Error('Le modèle n\'est pas encore chargé.'); }
+      const sys = `Tu es Snow, un petit chat doux et direct. Réponds de manière concise et claire. Si tu ne sais pas, dis-le.`;
+      const stream = await engine.chat.completions.create({
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: question }
+        ],
+        stream: true
+      });
+      let out = "";
+      for await (const chunk of stream){
+        const token = chunk?.choices?.[0]?.delta?.content || "";
+        if(token){ out += token; }
+      }
+      return out.trim();
+    }
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const text = input.value.trim();
+      if(!text) return;
+      addBubble(text, 'user');
+      input.value = '';
+      const thinking = document.createElement('div');
+      thinking.className = 'bubble bot';
+      thinking.textContent = '…';
+      messages.appendChild(thinking);
+      messages.scrollTop = messages.scrollHeight;
+
+      try{
+        const reply = await askLLM(text);
+        thinking.textContent = reply || "(Je n'ai pas compris, réessaie en reformulant.)";
+      }catch(err){
+        thinking.textContent = "Clique d'abord sur ‘Charger Snow’ (et attends ‘Snow est prêt’), puis repose ta question.";
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>
