@@ -210,7 +210,7 @@ function ruleAnswer(q){
     return "Ce fut un plaisir de discuter avec vous !";
 
   // 🔎 Questions math spécifiques (x / y)
-  if (hasRe(/\b(resultat|solution|valeur)\s+de\s+x\b/) ||
+  if (hasRe(/\b(resultat|solution|valeur|équation)\s+de\s+x\b/) ||
       hasRe(/\bquel(le)?\s+est\s+(le\s+)?(resultat|valeur)\s+de\s+x\b/))
     return "Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien…";
 
@@ -250,7 +250,7 @@ function ruleAnswer(q){
   if (has('deuxieme chiffre','2e chiffre'))
     return "Ah ah ah, je vois que le créateur vous donne du fil à retordre… J’espère qu’il vous facilitera un peu la tâche de temps en temps.";
   if (has('troisieme chiffre','3e chiffre'))
-    return "Je suis sûr que le créateur vous aurez subtilement indiqué ce qu’il faut faire pour franchir cette troisième étape… Observez bien les éléments dont vous disposez.";
+    return "Je suis sûr que le créateur vous aurez subtilement indiqué ce qu’il faut faire pour franchir cette troisième étape… Observez bien les éléments dont vous disposez. Il faudra bien que vous fassiez votre part.";
   if (has('quatrieme chiffre','4e chiffre'))
     return "Pour finir, il est toujours intéressant de bénéficier d’un feedback. En avez-vous eu un lors de votre progression ?";
   if (has('lampe uv','ultraviolet','uv'))
