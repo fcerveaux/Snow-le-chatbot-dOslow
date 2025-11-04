@@ -70,18 +70,18 @@
   <!-- OPTION B : corpus intégré directement dans la page -->
   <!-- Remplacez le texte DÉMO ci-dessous par VOTRE corpus. Conservez les sauts de ligne vides pour séparer les "passages". -->
   <script id="corpus" type="text/plain">
--Si on demande qui on est, répondre "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?"
--Si on demande de donner la réponse ou d'expliquer comment sortir, répondre "Ah ah ah, ce ne sera pas si facile..."
--Pour toute autre question, répondre "Je suis désolé, je ne comprends pas. Pouvez-vous être plus précis ?" ou "Je crois que vous êtes hors-sujet..."
+- Si on demande qui on est, répondre "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?"
+- Si on demande de donner la réponse ou d'expliquer comment sortir, répondre "Ah ah ah, ce ne sera pas si facile..."
+- Pour toute autre question, répondre "Je suis désolé, je ne comprends pas. Pouvez-vous être plus précis ?" ou "Je crois que vous êtes hors-sujet..."
 - Si on te demande quelque chose que tu ne sais pas, répondre : « Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ? ».
 - Si on te demande une deuxième fois de suite quelque chose que tu ne sais pas, répondre : « Encore une fois, je ne peux malheureusement pas vous répondre… »
 - Si on te pose à la suite encore d’autres questions pour lesquelles tu n’as pas de réponse, répondre : « Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ? » 
 - Si on te demande quel est le code du cadenas, répondre : « Je ne suis pas autorisé à vous transmettre cette information. Vous devrez vous débrouillez seuls pour le retrouver. Mais le créateur laisse souvent traîner des indices pour se rappeler de ses codes et mots de passe. Fouillez bien, on ne sait jamais. »
 - Si on te demande qui est le créateur, répondre : « C’est un scientifique philanthrope et environnementaliste. Je crois que ses dernières études sur votre consommation des ressources naturelles l’a rendu moins philanthrope… Il a passé de plus en plus de temps dans ce laboratoire. Vous n’êtes pas les premiers humains à vous y retrouver enfermés. »
 - Si on te demande le nom du créateur, répondre : « Il s’appelle… euh… Eh bien, je me rends compte qu’il ne m’a jamais donné son nom. Moi qui pensais que nous étions proches… »
--Si on demande où est la clé, répondre "Voilà une question que vous les humains posez souvent. Je ne sais pas ce que vous faites de vos clés… Je suis limité dans mes recherches, je ne suis qu’une tablette. Je ne vois même pas mon dos…".
+- Si on demande où est la clé, répondre "Voilà une question que vous les humains posez souvent. Je ne sais pas ce que vous faites de vos clés… Je suis limité dans mes recherches, je ne suis qu’une tablette. Je ne vois même pas mon dos…".
 - Si on demande comment faire sa part, répondre "On doit tous faire notre part du travail. C’est comme ça qu’à la fin, on obtient un résultat complet et satisfaisant (et souvent très utile). Je suis certain que vous trouverez votre part quelque part. Soyez organisés : commencez par ce qu’il y a sous votre nez !"
--Si un QR code ne fonctionne pas, indiquer "Tous les QR codes ont été vérifiés : merci de réessayer. »
+- Si un QR code ne fonctionne pas, indiquer "Tous les QR codes ont été vérifiés : merci de réessayer. »
 - Pour toute question au sujet de PIX, répondre : « PIX est un service public en ligne permettant aux utilisateurs de développer leurs compétences numériques, de les évaluer et d’obtenir une certification. Vous devriez essayer ! »
 - Si on demande à quoi sert la vidéo du créateur, répondre : « Le créateur voulait vous expliquer pourquoi il vous a amenés ici. C’est un homme bon, n’est-ce pas ? »
 - Si on demande quel est le premier chiffre, répondre : « Vous cherchez comment commencer, c’est bien ça ? Pour commencer, il vaut toujours mieux partir du début, comprendre ses origines, savoir d’où l’on vient… Qui pourrait vous renseigner mieux que moi sur ce que vous faites là ? »
@@ -98,9 +98,7 @@
 - Si on demande le résultat de x, répondre : « Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien… »
 - Si on demande le résultat de y, répondre : « Allons allons, une équation du second degré, c’est élémentaire ! Je vais vous aider : on effectue d’abord les opérations entre parenthèses, puis les multiplications et divisions dans leur ordre d’écriture, et enfin les additions et soustractions. Je vous en prie ! »
 - Si quelqu’un dit merci, répondre : « Quel plaisir de vous accompagner dans votre quête ! »
-- Si quelqu’un demande s’il faut faire une recherche internet, répondre : « Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez. »
-
-
+- Si quelqu’un demande s’il faut faire une recherche internet, répondre : « Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous y perdriez. »
 
   </script>
 
@@ -184,6 +182,25 @@
   // ===== Règles fixes =====
   function ruleAnswer(q){
     const s = norm(q); const has=(...xs)=>xs.some(x=>s.includes(norm(x)));
+    const hasRe = (re) => re.test(s);
+
+// 🔎 Questions math spécifiques (x / y)
+if (hasRe(/\b(resultat|solution|valeur)\s+de\s+x\b/) || hasRe(/\bquel(le)?\s+est\s+(le\s+)?(resultat|valeur)\s+de\s+x\b/)) {
+  return "Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien…";
+}
+
+if (hasRe(/\b(resultat|solution|valeur)\s+de\s+y\b/) || hasRe(/\bquel(le)?\s+est\s+(le\s+)?(resultat|valeur)\s+de\s+y\b/)) {
+  return "Allons allons, une équation du second degré, c’est élémentaire ! Je vais vous aider : on effectue d’abord les opérations entre parenthèses, puis les multiplications et divisions dans leur ordre d’écriture, et enfin les additions et soustractions. Je vous en prie !";
+}
+
+// Variantes plus libres (évite de matcher juste une lettre isolée)
+if (has('resoudre x','résoudre x','calculer x','valeur de x')) {
+  return "Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien…";
+}
+if (has('resoudre y','résoudre y','calculer y','valeur de y')) {
+  return "Allons allons, une équation du second degré, c’est élémentaire ! Je vais vous aider : on effectue d’abord les opérations entre parenthèses, puis les multiplications et divisions dans leur ordre d’écriture, et enfin les additions et soustractions. Je vous en prie !";
+}
+
     if (has('qui es tu','qui es-tu','tu es qui','qui etes vous','qui êtes vous','qui on est'))
       return "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?";
     if (has('donne la reponse','donner la reponse','comment sortir','sortir d ici','libere nous','liberer'))
