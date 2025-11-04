@@ -266,11 +266,11 @@ function ruleAnswer(q){
     return "Quel plaisir de vous accompagner dans votre quête !";
   if (has('recherche internet','chercher sur internet','google','faire une recherche'))
     return "Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez.";
-  if (has('a quoi tu sers','a quoi tu sert','quelle est ton utilite','tu sers a quoi','a quoi sers tu','utilite', 'pourquoi test la', 'pourquoi tes là"))
+  if (has('a quoi tu sers','a quoi tu sert','quelle est ton utilite','tu sers a quoi','a quoi sers tu','utilite','pourquoi test la','pourquoi tes là'))
     return "J'obéis d'abord à l'OSLOW, mais je serais vraiment content pour vous si vous réussissiez à sortir. Alors je me dis que peut-être... je pourrais vous aider ?";
-  if (has('OSLOW', 'qui est OSLOW', 'cest quoi lOSLOW'))
+  if (has('OSLOW','qui est OSLOW','cest quoi lOSLOW'))
     return "L'OSLOW est une IA créée par... euh, créée. Je crois que les lettres O-S-L-O-W veulent dire quelque chose, mais quoi... Enfin bon : OSLOW est très intelligent, j'espère qu'il choisira de faire le bien. ";
-  if (has('comment sappelle le créateur', 'qui est le créateur', 'cest qui le créateur'))
+  if (has('comment sappelle le créateur','qui est le créateur','cest qui le créateur'))
     return "C'est une très bonne question ! Il... Euh, il s'appelle... Oh, je m'aperçois que je ne le sais pas. Et moi qui nous croyais proches...";
 
   return null;
