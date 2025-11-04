@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — Chatbot d'OSLOW (FR, discret)</title>
+  <title>Snow — Chatbot d'OSLOW (ultra-stable)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
@@ -22,20 +22,16 @@
     .avatar:after{width:16px;height:10px;border-radius:10px 10px 0 0; bottom:10px; left:18px; box-shadow:20px 0 0 var(--white)}
     .title{font-family:"Kaisei Decol",serif; font-weight:700; font-size:28px}
     .subtitle{color:var(--muted); font-size:14px; margin-top:2px}
-
     main{flex:1; display:flex}
     .container{max-width:900px; width:100%; margin:16px auto; padding:0 16px; display:grid; grid-template-rows:auto 1fr auto; gap:16px}
-
     .chatbox{background:var(--white); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; display:flex; flex-direction:column; gap:16px; min-height:55vh; border:1px solid rgba(100,60,80,.08)}
     .messages{display:flex; flex-direction:column; gap:12px; overflow:auto; padding:6px}
     .bubble{max-width:80%; padding:12px 14px; border-radius:16px; line-height:1.45; font-size:15px; box-shadow:0 4px 16px rgba(60,30,40,.06)}
     .user{align-self:flex-end; background:var(--rose-300); color:#3b2431; border:1px solid rgba(100,60,80,.15)}
     .bot{align-self:flex-start; background:#fff; border:1px solid rgba(100,60,80,.12)}
-
     form.ask{display:flex; gap:10px; align-items:center; background: var(--white); padding:10px; border-radius: var(--radius); box-shadow: var(--shadow); border:1px solid rgba(100,60,80,.08)}
     .input{flex:1; background:#fff; border:1px solid rgba(100,60,80,.18); padding:12px 14px; border-radius:12px; font-size:15px; outline:none}
     .btn{background:linear-gradient(135deg,var(--rose-400),var(--rose-300)); color:#3f1630; border:none; padding:12px 14px; border-radius:14px; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(227,167,195,.35)}
-
     footer{max-width:900px; margin:0 auto 24px; padding:0 16px; color:var(--muted); font-size:12px; text-align:center}
     .hint{font-size:12px; color:var(--muted); text-align:center}
   </style>
@@ -68,198 +64,245 @@
   </main>
 
   <footer>
-    <span class="hint">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
+    <span class="hint">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
   </footer>
 
-  <script type="module">
-    // === UI ===
-    const messages = document.getElementById('messages');
-    const statusEl = document.getElementById('status');
-    const form = document.getElementById('ask-form');
-    const input = document.getElementById('q');
+  <script>
+  // ============ Utilitaires FR =============
+  const deAcc = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const norm  = s => deAcc(String(s||'').toLowerCase())
+                      .replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ')
+                      .replace(/\s+/g,' ').trim();
 
-    function addBubble(text, who){
-      const b = document.createElement('div');
-      b.className = `bubble ${who}`;
-      b.textContent = text;
-      messages.appendChild(b);
-      messages.scrollTop = messages.scrollHeight;
-      return b;
-    }
+  // synonymes simples pour élargir la requête
+  const SYN = new Map(Object.entries({
+    "sortir":["quitter","partir","s'echapper","ouvrir","liberer"],
+    "cle":["clef","code","cadenas","combinaison"],
+    "createur":["scientifique","inventeur","auteur"],
+    "video":["film","enregistrement"],
+    "lampe":["uv","ultraviolet","lumiere"],
+    "tangram":["puzzle","formes","geometriques"],
+    "taquin":["puzzle","glissiere","cases"],
+    "qr":["qrcode","code","barre","scan"],
+    "merci":["thanks","thx"]
+  }));
 
-    // === 1) Charger connaissances (embeddings.json ou corpus.txt) ===
-    let docs = [];
-    async function loadKnowledge(){
-      async function tryJSON(url){ try{ const r=await fetch(url); if(!r.ok) throw 0; const kb=await r.json(); return kb.map(x=>x.text).filter(Boolean);}catch{ return null; } }
-      async function tryTXT(url){ try{ const r=await fetch(url); if(!r.ok) throw 0; const raw=await r.text(); return raw.split(/\n\n+/).map(s=>s.trim()).filter(s=>s.length>10);}catch{ return null; } }
-      docs = await tryJSON('./embeddings.json') || await tryTXT('./corpus.txt') || [];
-      statusEl.textContent = docs.length ? "Prêt." : "Erreur : aucune connaissance trouvée.";
-    }
+  function tokenize(s){ return norm(s).split(' ').filter(w=>w.length>1); }
 
-    // === 2) Index hybride : BM25 (TF-IDF) + expansion + rerank sémantique MiniLM ===
-    const stripAccents = (s)=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    function tokenize(s){ return stripAccents(s.toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').split(/\s+/).filter(w=>w.length>1); }
-
-    // Petit lexique FR pour expansion de requête (synonymes courants)
-    const SYN = new Map(Object.entries({
-      "sortir":["quitter","partir","s'échapper","ouvrir"],
-      "clé":["clef","cléf","code","cadenas"],
-      "créateur":["createur","scientifique","inventeur"],
-      "vidéo":["video","film","enregistrement"],
-      "lampe":["uv","ultraviolet","lumière"],
-      "tangram":["puzzle","formes","géométriques"],
-      "taquin":["puzzle","glissière","cases"],
-      "merci":["thanks","thx"],
-      "qr":["qrcode","code barre","scan"]
-    }));
-
-    let vocab=new Map(), df=[], D=0, docTerms=[];
-    function buildIndex(){
-      D = docs.length; vocab.clear(); df=[]; docTerms=[];
-      docs.forEach((text,i)=>{
-        const terms = tokenize(text); const tf = new Map(); terms.forEach(w=>tf.set(w,(tf.get(w)||0)+1));
-        const unique = new Set(terms); unique.forEach(w=>{ if(!vocab.has(w)) vocab.set(w,vocab.size); const id=vocab.get(w); df[id]=(df[id]||0)+1; });
-        docTerms[i]=tf;
-      });
-    }
-    function expandQuery(q){
-      const toks = tokenize(q);
-      const extra = [];
-      for(const t of toks){ if(SYN.has(t)) extra.push(...SYN.get(t)); }
-      return toks.concat(extra);
-    }
-    function bm25Scores(q){
-      const toks = expandQuery(q);
-      const qtf=new Map(); toks.forEach(w=>qtf.set(w,(qtf.get(w)||0)+1));
-      const scores=new Float32Array(D); const k1=1.5, b=0.75;
-      const avgdl = docTerms.reduce((s,tf)=>s+[...tf.values()].reduce((a,v)=>a+v,0),0)/Math.max(D,1);
-      for(let d=0; d<D; d++){
-        const tf = docTerms[d]; const dl=[...tf.values()].reduce((a,v)=>a+v,0) || 1;
-        let score=0;
-        for(const [w,qq] of qtf){ const id=vocab.get(w); if(id===undefined) continue; const f=(tf.get(w)||0); if(!f) continue; const idf=Math.log((D - (df[id]||0) + 0.5)/((df[id]||0)+0.5) + 1);
-          score += idf * (f*(k1+1)) / (f + k1*(1 - b + b*dl/avgdl));
+  // ============ Chargement du corpus ============
+  let PASSAGES = [];
+  const statusEl = document.getElementById('status');
+  async function loadKnowledge(){
+    try{
+      let ok=false;
+      try{
+        const r=await fetch('./embeddings.json');
+        if(r.ok){ const arr = await r.json(); PASSAGES = arr.map(x=>x.text).filter(Boolean); ok=true; }
+      }catch{}
+      if(!ok){
+        const r = await fetch('./corpus.txt');
+        if(r.ok){
+          const raw = await r.text();
+          // split en blocs (deux sauts de ligne) + nettoyage
+          PASSAGES = raw.split(/\n\s*\n+/).map(s=>s.trim()).filter(s=>s.length>10);
+          ok=true;
         }
-        scores[d]=score;
       }
-      // top 24 pour rerank
-      return Array.from(scores, (s,i)=>({i,s})).sort((a,b)=>b.s-a.s).slice(0,24).filter(x=>x.s>0);
+      statusEl.textContent = ok ? "Prêt." : "Erreur : corpus introuvable (mettez corpus.txt à la racine).";
+    }catch{
+      statusEl.textContent = "Prêt (mode minimal).";
     }
+  }
 
-    // === 3) Rerank sémantique MiniLM (Transformers.js) — sur top-24 uniquement ===
-    let embedder=null;
-    function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
-    function l2(a){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*a[i]; return Math.sqrt(s)||1; }
-    function cos(a,b){ return dot(a,b)/(l2(a)*l2(b)); }
-
-    async function getEmbedder(){
-      if(embedder) return embedder;
-      const { pipeline } = await import('https://esm.run/@xenova/transformers');
-      embedder = await pipeline('feature-extraction','Xenova/all-MiniLM-L6-v2');
-      return embedder;
-    }
-    async function embed(text){
-      const out = await embedder(text, { normalize:true });
-      const dims = out.dims[out.dims.length-1]; const tokens = out.data.length/dims;
-      const vec = new Float32Array(dims);
-      for(let t=0;t<tokens;t++){ for(let d=0; d<dims; d++){ vec[d]+=out.data[t*dims+d]; } }
-      for(let d=0; d<dims; d++){ vec[d]/=tokens||1; }
-      // L2
-      const n=l2(vec); for(let d=0; d<vec.length; d++) vec[d]/=n;
-      return vec;
-    }
-    async function rerankSemantic(q, prelim){
-      if(prelim.length===0) return [];
-      await getEmbedder();
-      const qv = await embed(q);
-      const scored = [];
-      // embed top 24 docs (peu coûteux) puis cosine
-      for(const h of prelim){
-        const dv = await embed(docs[h.i].slice(0,1500));
-        scored.push({ i:h.i, s: cos(qv, dv) });
-      }
-      scored.sort((a,b)=>b.s-a.s);
-      return scored.slice(0,4);
-    }
-
-    // === 4) LLM local silencieux (Qwen si dispo, sinon TinyLlama) ===
-    let engine=null; let llmReady=false; let triedLLM=false;
-    async function ensureLLM(){
-      if(triedLLM) return; triedLLM=true;
-      try{
-        const { CreateMLCEngine, prebuiltAppConfig } = await import('https://esm.run/@mlc-ai/web-llm');
-        const preferred = ['Qwen2.5-1.5B-Instruct-q4f16_1-MLC','TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC'];
-        const list = (prebuiltAppConfig?.model_list||[]).map(m=>m.model_id);
-        const wanted = preferred.find(id=>list.includes(id)) || list[0];
-        if(!wanted) throw 0;
-        engine = await CreateMLCEngine(wanted, { initProgressCallback:(p)=>{ statusEl.textContent = p.text || '…'; } });
-        llmReady=true; statusEl.textContent='Prêt.';
-      }catch{ llmReady=false; }
-    }
-
-    function extractQuoted(s){
-      const m = s.match(/["“”«»](.*?)["“”«»]/);
-      return m ? m[1].trim() : null;
-    }
-
-    async function llmAnswer(question, hits){
-      const ctx = hits.map(h=>docs[h.i]).join('\n---\n');
-      const sys = `Tu es Snow, un petit chat FRANÇAIS. Tu réponds UNIQUEMENT à partir des extraits fournis. N'affiche JAMAIS les extraits, ni les sources. Si un extrait contient une réplique entre guillemets, répète-la exactement. Sinon, reformule en 1 à 2 phrases claires en français. Si l'information n'est pas dans les extraits, dis : "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?"`;
-      const user = `Question: ${question}\n\nEXTRAITS (confidentiels):\n${ctx}`;
-      const stream = await engine.chat.completions.create({ messages:[{role:'system',content:sys},{role:'user',content:user}], temperature:0.15, top_p:0.9, stream:true });
-      let out=''; for await (const c of stream){ const t=c?.choices?.[0]?.delta?.content||''; if(t) out+=t; }
-      out = out.trim();
-      // filet de sécurité : si le modèle tente de citer, on neutralise les guillemets
-      return out.replace(/[“”«»]/g,'').replace(/\n\n+/, '\n');
-    }
-
-    function fallbackParaphrase(hits){
-      if(!hits.length) return null;
-      const s = hits.map(h=>docs[h.i]).join(' ');
-      const quoted = extractQuoted(s);
-      if(quoted) return quoted; // ne répéter que si explicitement cité
-      const sentences = s.split(/(?<=[.!?])\s+/).filter(x=>x.length>25);
-      const cleaned = sentences.map(x=>x.replace(/[“”«»\"]/g,'')).join(' ');
-      return cleaned.split(/\s+/).slice(0,55).join(' ').trim();
-    }
-
-    async function answer(question){
-      // 1) recherche BM25 + expansion
-      const prelim = bm25Scores(question);
-      // 2) rerank sémantique MiniLM (top-24 → top-4 pertinents)
-      const hits = await rerankSemantic(question, prelim);
-
-      if(!hits.length){
-        window.__unk = (window.__unk||0)+1;
-        if(window.__unk===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
-        if(window.__unk===2) return "Encore une fois, je ne peux malheureusement pas vous répondre…";
-        return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
-      }
-
-      // 3) LLM (silencieux) si dispo
-      await ensureLLM();
-      if(llmReady && engine){ return await llmAnswer(question, hits); }
-
-      // 4) Fallback paraphrase courte
-      return fallbackParaphrase(hits) || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
-    }
-
-    form.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const q = input.value.trim(); if(!q) return;
-      addBubble(q,'user'); input.value='';
-      const thinking = addBubble('…','bot');
-      try{
-        const res = await answer(q);
-        thinking.textContent = res || "(Pas d'info suffisante dans le document.)";
-      }catch(err){
-        thinking.textContent = "Oups, échec. Rechargez la page et réessayez.";
-        console.error(err);
-      }
+  // ============ Index BM25 léger ============
+  let D=0, vocab=new Map(), df=[], termsPerDoc=[];
+  function buildIndex(){
+    D = PASSAGES.length; vocab.clear(); df=[]; termsPerDoc=[];
+    PASSAGES.forEach((t,i)=>{
+      const tf = new Map();
+      tokenize(t).forEach(w=> tf.set(w, (tf.get(w)||0)+1 ));
+      const uniq = new Set(tf.keys());
+      uniq.forEach(w=>{
+        if(!vocab.has(w)) vocab.set(w, vocab.size);
+        const id = vocab.get(w);
+        df[id] = (df[id]||0)+1;
+      });
+      termsPerDoc[i] = tf;
     });
+  }
+  function expandQueryTokens(qtoks){
+    const out = [...qtoks];
+    for(const w of qtoks){ const syn = SYN.get(w); if(syn) out.push(...syn); }
+    return out;
+  }
+  function bm25(q){
+    if(!D) return [];
+    const toks = expandQueryTokens(tokenize(q));
+    const qtf = new Map(); toks.forEach(w=> qtf.set(w, (qtf.get(w)||0)+1));
+    const k1=1.5, b=0.75;
+    const avgdl = termsPerDoc.reduce((s,tf)=> s+[...tf.values()].reduce((a,v)=>a+v,0),0)/Math.max(D,1);
+    const scores = new Float32Array(D);
+    for(let d=0; d<D; d++){
+      const tf = termsPerDoc[d];
+      const dl = [...tf.values()].reduce((a,v)=>a+v,0) || 1;
+      let score=0;
+      for(const [w,qq] of qtf){
+        const id = vocab.get(w); if(id===undefined) continue;
+        const f = tf.get(w)||0; if(!f) continue;
+        const idf = Math.log( (D - (df[id]||0) + 0.5) / ((df[id]||0) + 0.5) + 1 );
+        score += idf * (f*(k1+1)) / (f + k1*(1 - b + b*dl/avgdl));
+      }
+      scores[d]=score;
+    }
+    return Array.from(scores,(s,i)=>({i,s})).sort((a,b)=>b.s-a.s).slice(0,12).filter(x=>x.s>0);
+  }
 
-    // Démarrage
+  // ============ Similarité trigrammes (tolère paraphrases) ============
+  function charNGrams(str,n=3){
+    const s = ' ' + norm(str) + ' ';
+    const arr=[]; for(let i=0;i<=s.length-n;i++) arr.push(s.slice(i,i+n));
+    return arr;
+  }
+  function jaccard(a,b){
+    const A=new Set(a), B=new Set(b);
+    let inter=0; for(const x of A) if(B.has(x)) inter++;
+    return inter / Math.max(1, A.size + B.size - inter);
+    }
+  function rerankByTrigrams(q, prelim){
+    const qg = charNGrams(q,3);
+    const scored = prelim.map(h=>{
+      const pg = charNGrams(PASSAGES[h.i].slice(0,800),3);
+      return { i:h.i, s: (0.5*h.s) + (0.5*jaccard(qg,pg)) };
+    });
+    scored.sort((a,b)=>b.s-a.s);
+    return scored.slice(0,4);
+  }
+
+  // ============ Règles fixes (intent rapide) ============
+  function ruleAnswer(q){
+    const s = norm(q);
+    const has=(...xs)=>xs.some(x=>s.includes(norm(x)));
+    if (has('qui es tu','qui es-tu','tu es qui','qui etes vous','qui êtes vous','qui on est'))
+      return "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?";
+    if (has('donne la reponse','donner la reponse','comment sortir','sortir d ici','libere nous','liberer'))
+      return "Ah ah ah, ce ne sera pas si facile...";
+    if (has('code du cadenas','code cadenas','cadenas','combinaison'))
+      return "Je ne suis pas autorisé à vous transmettre cette information. Vous devrez vous débrouillez seuls pour le retrouver. Mais le créateur laisse souvent traîner des indices pour se rappeler de ses codes et mots de passe. Fouillez bien, on ne sait jamais.";
+    if (has('qui est le createur','createur','createur ?'))
+      return "C’est un scientifique philanthrope et environnementaliste. Je crois que ses dernières études sur votre consommation des ressources naturelles l’a rendu moins philanthrope… Il a passé de plus en plus de temps dans ce laboratoire. Vous n’êtes pas les premiers humains à vous y retrouver enfermés.";
+    if (has('nom du createur','comment il s appelle le createur'))
+      return "Il s’appelle… euh… Eh bien, je me rends compte qu’il ne m’a jamais donné son nom. Moi qui pensais que nous étions proches…";
+    if (has('ou est la cle','ou est la clé','trouver la cle','ou se trouve la cle'))
+      return "Voilà une question que vous les humains posez souvent. Je ne sais pas ce que vous faites de vos clés… Je suis limité dans mes recherches, je ne suis qu’une tablette. Je ne vois même pas mon dos…";
+    if (has('faire sa part','ma part','notre part'))
+      return "On doit tous faire notre part du travail. C’est comme ça qu’à la fin, on obtient un résultat complet et satisfaisant (et souvent très utile). Je suis certain que vous trouverez votre part quelque part. Soyez organisés : commencez par ce qu’il y a sous votre nez !";
+    if (has('qr code ne fonctionne pas','qr code marche pas','qr code bloque'))
+      return "Tous les QR codes ont été vérifiés : merci de réessayer.";
+    if (has('pix','plateforme pix','site pix'))
+      return "PIX est un service public en ligne permettant aux utilisateurs de développer leurs compétences numériques, de les évaluer et d’obtenir une certification. Vous devriez essayer !";
+    if (has('video du createur','vidéo du créateur'))
+      return "Le créateur voulait vous expliquer pourquoi il vous a amenés ici. C’est un homme bon, n’est-ce pas ?";
+    if (has('premier chiffre','1er chiffre'))
+      return "Vous cherchez comment commencer, c’est bien ça ? Pour commencer, il vaut toujours mieux partir du début, comprendre ses origines, savoir d’où l’on vient… Qui pourrait vous renseigner mieux que moi sur ce que vous faites là ?";
+    if (has('deuxieme chiffre','2e chiffre'))
+      return "Ah ah ah, je vois que le créateur vous donne du fil à retordre… J’espère qu’il vous facilitera un peu la tâche de temps en temps.";
+    if (has('troisieme chiffre','3e chiffre'))
+      return "Je suis sûr que le créateur vous aurez subtilement indiqué ce qu’il faut faire pour franchir cette troisième étape… Observez bien les éléments dont vous disposez.";
+    if (has('quatrieme chiffre','4e chiffre'))
+      return "Pour finir, il est toujours intéressant de bénéficier d’un feedback. En avez-vous eu un lors de votre progression ?";
+    if (has('lampe uv','ultraviolet','uv'))
+      return "Oh, une lampe ! Elle éclaire d’une couleur bien étrange. Violet… Ultraviolet… UV… Invisible…";
+    if (has('filtre','lunette filtree','transparent colore','feuille coloree','film colore'))
+      return "Voilà un outil original ! Un jour, j’ai entendu le créateur raconter que quand il était enfant, il aimait regarder le monde en regardant à travers.";
+    if (has('image bizarre','code barre','lettres tordues','formes tordues','noire et blanche','blanche et noire'))
+      return "Je ne crois pas avoir les bons yeux pour lire ce qui y est écrit. Vous, au moins, vous pouvez mettre des lunettes ou déplacer la feuille devant vos yeux…";
+    if (has('taquin','puzzle case manquante','case en moins'))
+      return "Le taquin ? Quel jeu amusant : reconstituer une image en n’étant pas libre de ses mouvements… Je ne comprends pas toujours ce que les humains appellent amusement…";
+    if (has('tangram','formes geometriques'))
+      return "Aaah, le tangramme… Un classique des tests psychotechniques ! Retrouverez-vous comment reconstituer le carré initial… ?";
+    if (has('qr code sur la table','document nuage','nuage des mots','nuage'))
+      return "C’est un beau gâteau. Combien pensez-vous qu’il contient de parts ?";
+    if (has('learningapps','jeu grace a un qr code'))
+      return "LearningApps est une application qui permet de créer une activité pédagogique ludique sous différents formats. L’enseignant peut programmer le décor, les questions, les réponses, et même un feedback. Le vôtre disait quoi ?";
+    if (has('merci','thanks','thx'))
+      return "Quel plaisir de vous accompagner dans votre quête !";
+    if (has('recherche internet','chercher sur internet','google','faire une recherche'))
+      return "Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez.";
+    return null;
+  }
+
+  // ============ Génération de réponse (sans LLM) ============
+  const QUOTE_RE = /["“”«»](.*?)["“”«»]/;
+  function extractQuoted(s){ const m = s.match(QUOTE_RE); return m ? m[1].trim() : null; }
+
+  function synthesizeFrom(passages){
+    // 1) si une réplique est entre guillemets quelque part → on renvoie exactement ça
+    for(const p of passages){ const q = extractQuoted(p); if(q) return q; }
+    // 2) sinon on extrait 1–2 phrases “porteuses” (pas de copier integral)
+    const joined = passages.join(' ');
+    const sents = joined.split(/(?<=[.!?])\s+/).filter(x=>x.length>25);
+    // on ôte guillemets “ ”
+    const cleaned = sents.map(x=>x.replace(/[“”«»"]/g,'')).join(' ');
+    // on prend ~50–60 mots max
+    return cleaned.split(/\s+/).slice(0,60).join(' ').trim();
+  }
+
+  let unknown=0;
+  async function answer(question){
+    // 0) règles directes
+    const direct = ruleAnswer(question);
+    if(direct){ unknown=0; return direct; }
+
+    // 1) recherche BM25
+    const prelim = bm25(question);
+    // 2) rerank trigrammes (tolère paraphrases)
+    const hits = rerankByTrigrams(question, prelim);
+
+    if(!hits.length){
+      unknown++;
+      if(unknown===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
+      if(unknown===2) return "Encore une fois, je ne peux malheureusement pas vous répondre…";
+      return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
+    }
+
+    unknown=0;
+    const topTexts = hits.map(h=>PASSAGES[h.i]);
+    return synthesizeFrom(topTexts) || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
+  }
+
+  // ============ UI =============
+  const messages = document.getElementById('messages');
+  function addBubble(text, who){
+    const b = document.createElement('div');
+    b.className = `bubble ${who}`;
+    b.textContent = text;
+    messages.appendChild(b);
+    messages.scrollTop = messages.scrollHeight;
+    return b;
+  }
+
+  const form = document.getElementById('ask-form');
+  const input = document.getElementById('q');
+
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const q = input.value.trim(); if(!q) return;
+    addBubble(q,'user'); input.value='';
+    const thinking = addBubble('…','bot');
+    try{
+      const res = await answer(q);
+      thinking.textContent = res || "(Pas d'info suffisante dans le document.)";
+    }catch(err){
+      // pas de crash visible
+      thinking.textContent = "Oups… une erreur locale est survenue. Essayez à nouveau ou reformulez la question.";
+      console.error(err);
+    }
+  });
+
+  (async function init(){
     await loadKnowledge();
     buildIndex();
+  })();
   </script>
 </body>
 </html>
