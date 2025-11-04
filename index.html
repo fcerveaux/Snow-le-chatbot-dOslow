@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Snow — Chatbot d'OSLOW (ultra-stable)</title>
+  <title>Snow — Chatbot d'OSLOW (ultra-stable, corpus embarqué)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
@@ -67,14 +67,50 @@
     <span class="hint">Confidentialité : tout se passe dans votre navigateur. Aucune donnée n'est envoyée ni stockée une fois l'onglet fermé.</span>
   </footer>
 
-  <script>
-  // ============ Utilitaires FR =============
-  const deAcc = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const norm  = s => deAcc(String(s||'').toLowerCase())
-                      .replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ')
-                      .replace(/\s+/g,' ').trim();
+  <!-- OPTION B : corpus intégré directement dans la page -->
+  <!-- Remplacez le texte DÉMO ci-dessous par VOTRE corpus. Conservez les sauts de ligne vides pour séparer les "passages". -->
+  <script id="corpus" type="text/plain">
+-Si on demande qui on est, répondre "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?"
+-Si on demande de donner la réponse ou d'expliquer comment sortir, répondre "Ah ah ah, ce ne sera pas si facile..."
+-Pour toute autre question, répondre "Je suis désolé, je ne comprends pas. Pouvez-vous être plus précis ?" ou "Je crois que vous êtes hors-sujet..."
+- Si on te demande quelque chose que tu ne sais pas, répondre : « Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ? ».
+- Si on te demande une deuxième fois de suite quelque chose que tu ne sais pas, répondre : « Encore une fois, je ne peux malheureusement pas vous répondre… »
+- Si on te pose à la suite encore d’autres questions pour lesquelles tu n’as pas de réponse, répondre : « Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ? » 
+- Si on te demande quel est le code du cadenas, répondre : « Je ne suis pas autorisé à vous transmettre cette information. Vous devrez vous débrouillez seuls pour le retrouver. Mais le créateur laisse souvent traîner des indices pour se rappeler de ses codes et mots de passe. Fouillez bien, on ne sait jamais. »
+- Si on te demande qui est le créateur, répondre : « C’est un scientifique philanthrope et environnementaliste. Je crois que ses dernières études sur votre consommation des ressources naturelles l’a rendu moins philanthrope… Il a passé de plus en plus de temps dans ce laboratoire. Vous n’êtes pas les premiers humains à vous y retrouver enfermés. »
+- Si on te demande le nom du créateur, répondre : « Il s’appelle… euh… Eh bien, je me rends compte qu’il ne m’a jamais donné son nom. Moi qui pensais que nous étions proches… »
+-Si on demande où est la clé, répondre "Voilà une question que vous les humains posez souvent. Je ne sais pas ce que vous faites de vos clés… Je suis limité dans mes recherches, je ne suis qu’une tablette. Je ne vois même pas mon dos…".
+- Si on demande comment faire sa part, répondre "On doit tous faire notre part du travail. C’est comme ça qu’à la fin, on obtient un résultat complet et satisfaisant (et souvent très utile). Je suis certain que vous trouverez votre part quelque part. Soyez organisés : commencez par ce qu’il y a sous votre nez !"
+-Si un QR code ne fonctionne pas, indiquer "Tous les QR codes ont été vérifiés : merci de réessayer. »
+- Pour toute question au sujet de PIX, répondre : « PIX est un service public en ligne permettant aux utilisateurs de développer leurs compétences numériques, de les évaluer et d’obtenir une certification. Vous devriez essayer ! »
+- Si on demande à quoi sert la vidéo du créateur, répondre : « Le créateur voulait vous expliquer pourquoi il vous a amenés ici. C’est un homme bon, n’est-ce pas ? »
+- Si on demande quel est le premier chiffre, répondre : « Vous cherchez comment commencer, c’est bien ça ? Pour commencer, il vaut toujours mieux partir du début, comprendre ses origines, savoir d’où l’on vient… Qui pourrait vous renseigner mieux que moi sur ce que vous faites là ? »
+- Si on demande quel est le deuxième chiffre, répondre : « Ah ah ah, je vois que le créateur vous donne du fil à retordre… J’espère qu’il vous facilitera un peu la tâche de temps en temps. »
+- Si on demande à quoi sert la lampe UV, répondre : « Oh, une lampe ! Elle éclaire d’une couleur bien étrange. Violet… Ultraviolet… UV… Invisible… »
+- Si on demande à quoi sert le filtre ou la lunette filtrée ou le transparent coloré, répondre : « Voilà un outil original ! Un jour, j’ai entendu le créateur raconter que quand il était enfant, il aimait regarder le monde en regardant à travers. »
+- Si on demande ce qu’est l’image bizarre qui ressemble à un code barre, avec des formes tordues ou des lettres tordues, blanche et noire, répondre : « Je ne crois pas avoir les bons yeux pour lire ce qui y est écrit. Vous, au moins, vous pouvez mettre des lunettes ou déplacer la feuille devant vos yeux… »
+- Si on demande ce qu’est le puzzle avec une image et des codes derrière avec une case en moins, le taquin, répondre : « Le taquin ? Quel jeu amusant : reconstituer une image en n’étant pas libre de ses mouvements… Je ne comprends pas toujours ce que les humains appellent amusement… »
+- Si on demande ce qu’est le puzzle fait de formes géométriques comme un triangle, un carré ou un rectangle, ou tangramme, répondre : « Aaah, le tangramme… Un classique des tests psychotechniques ! Retrouverez-vous comment reconstituer le carré initial… ? »
+- Si on demande à quoi sert le QR code sur la table ou à quoi sert le document Nuage, répondre : « C’est un beau gâteau. Combien pensez-vous qu’il contient de parts ? »
+- Si on demande à quoi sert le jeu ouvert grâce à un QR code, fait sur LearningApps, répondre : « LearningApps est une application qui permet de créer une activité pédagogique ludique sous différents formats. L’enseignant peut programmer le décor, les questions, les réponses, et même un feedback. Le vôtre disait quoi ? »
+- Si on demande quel est le troisième chiffre, répondre : « Je suis sûr que le créateur vous aurez subtilement indiqué ce qu’il faut faire pour franchir cette troisième étape… Observez bien les éléments dont vous disposez. »
+- Si on demande quel est le quatrième chiffre, répondre : « Pour finir, il est toujours intéressant de bénéficier d’un feedback. En avez-vous eu un lors de votre progression ? »
+- Si on demande le résultat de x, répondre : « Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien… »
+- Si on demande le résultat de y, répondre : « Allons allons, une équation du second degré, c’est élémentaire ! Je vais vous aider : on effectue d’abord les opérations entre parenthèses, puis les multiplications et divisions dans leur ordre d’écriture, et enfin les additions et soustractions. Je vous en prie ! »
+- Si quelqu’un dit merci, répondre : « Quel plaisir de vous accompagner dans votre quête ! »
+- Si quelqu’un demande s’il faut faire une recherche internet, répondre : « Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez. »
 
-  // synonymes simples pour élargir la requête
+
+
+  </script>
+
+  <script>
+  // ===== Utils FR =====
+  const deAcc = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const norm  = s => deAcc(String(s||'').toLowerCase()).replace(/[^a-z0-9\sàâäçéèêëîïôöùûüÿœ-]/gi,' ').replace(/\s+/g,' ').trim();
+  const QUOTE_RE = /["“”«»](.*?)["“”«»]/;
+
+  // synonymes simples
   const SYN = new Map(Object.entries({
     "sortir":["quitter","partir","s'echapper","ouvrir","liberer"],
     "cle":["clef","code","cadenas","combinaison"],
@@ -88,57 +124,40 @@
   }));
 
   function tokenize(s){ return norm(s).split(' ').filter(w=>w.length>1); }
+  function extractQuoted(s){ const m = s.match(QUOTE_RE); return m ? m[1].trim() : null; }
 
-  // ============ Chargement du corpus ============
+  // ===== Connaissances =====
   let PASSAGES = [];
   const statusEl = document.getElementById('status');
   async function loadKnowledge(){
-    try{
-      let ok=false;
-      try{
-        const r=await fetch('./embeddings.json');
-        if(r.ok){ const arr = await r.json(); PASSAGES = arr.map(x=>x.text).filter(Boolean); ok=true; }
-      }catch{}
-      if(!ok){
-        const r = await fetch('./corpus.txt');
-        if(r.ok){
-          const raw = await r.text();
-          // split en blocs (deux sauts de ligne) + nettoyage
-          PASSAGES = raw.split(/\n\s*\n+/).map(s=>s.trim()).filter(s=>s.length>10);
-          ok=true;
-        }
-      }
-      statusEl.textContent = ok ? "Prêt." : "Erreur : corpus introuvable (mettez corpus.txt à la racine).";
-    }catch{
-      statusEl.textContent = "Prêt (mode minimal).";
+    // 1) priorité au corpus EMBARQUÉ
+    const tag = document.getElementById('corpus');
+    if(tag && tag.textContent.trim().length>0){
+      PASSAGES = tag.textContent.split(/\n\s*\n+/).map(s=>s.trim()).filter(s=>s.length>10);
+      statusEl.textContent = 'Prêt.'; return;
     }
+    // 2) fallback fichiers (au cas où)
+    try{ const r=await fetch('./embeddings.json'); if(r.ok){ const arr=await r.json(); PASSAGES=arr.map(x=>x.text).filter(Boolean); statusEl.textContent='Prêt.'; return; } }catch{}
+    try{ const r=await fetch('./corpus.txt'); if(r.ok){ const raw=await r.text(); PASSAGES=raw.split(/\n\s*\n+/).map(s=>s.trim()).filter(s=>s.length>10); statusEl.textContent='Prêt.'; return; } }catch{}
+    statusEl.textContent = 'Erreur : aucun corpus trouvé (bloc <script id="corpus"> ou fichier).';
   }
 
-  // ============ Index BM25 léger ============
+  // ===== Index BM25 =====
   let D=0, vocab=new Map(), df=[], termsPerDoc=[];
   function buildIndex(){
     D = PASSAGES.length; vocab.clear(); df=[]; termsPerDoc=[];
     PASSAGES.forEach((t,i)=>{
-      const tf = new Map();
-      tokenize(t).forEach(w=> tf.set(w, (tf.get(w)||0)+1 ));
+      const tf = new Map(); tokenize(t).forEach(w=> tf.set(w,(tf.get(w)||0)+1));
       const uniq = new Set(tf.keys());
-      uniq.forEach(w=>{
-        if(!vocab.has(w)) vocab.set(w, vocab.size);
-        const id = vocab.get(w);
-        df[id] = (df[id]||0)+1;
-      });
+      uniq.forEach(w=>{ if(!vocab.has(w)) vocab.set(w, vocab.size); const id=vocab.get(w); df[id]=(df[id]||0)+1; });
       termsPerDoc[i] = tf;
     });
   }
-  function expandQueryTokens(qtoks){
-    const out = [...qtoks];
-    for(const w of qtoks){ const syn = SYN.get(w); if(syn) out.push(...syn); }
-    return out;
-  }
+  function expandQueryTokens(qtoks){ const out=[...qtoks]; for(const w of qtoks){ const syn=SYN.get(w); if(syn) out.push(...syn); } return out; }
   function bm25(q){
     if(!D) return [];
     const toks = expandQueryTokens(tokenize(q));
-    const qtf = new Map(); toks.forEach(w=> qtf.set(w, (qtf.get(w)||0)+1));
+    const qtf = new Map(); toks.forEach(w=> qtf.set(w,(qtf.get(w)||0)+1));
     const k1=1.5, b=0.75;
     const avgdl = termsPerDoc.reduce((s,tf)=> s+[...tf.values()].reduce((a,v)=>a+v,0),0)/Math.max(D,1);
     const scores = new Float32Array(D);
@@ -157,38 +176,21 @@
     return Array.from(scores,(s,i)=>({i,s})).sort((a,b)=>b.s-a.s).slice(0,12).filter(x=>x.s>0);
   }
 
-  // ============ Similarité trigrammes (tolère paraphrases) ============
-  function charNGrams(str,n=3){
-    const s = ' ' + norm(str) + ' ';
-    const arr=[]; for(let i=0;i<=s.length-n;i++) arr.push(s.slice(i,i+n));
-    return arr;
-  }
-  function jaccard(a,b){
-    const A=new Set(a), B=new Set(b);
-    let inter=0; for(const x of A) if(B.has(x)) inter++;
-    return inter / Math.max(1, A.size + B.size - inter);
-    }
-  function rerankByTrigrams(q, prelim){
-    const qg = charNGrams(q,3);
-    const scored = prelim.map(h=>{
-      const pg = charNGrams(PASSAGES[h.i].slice(0,800),3);
-      return { i:h.i, s: (0.5*h.s) + (0.5*jaccard(qg,pg)) };
-    });
-    scored.sort((a,b)=>b.s-a.s);
-    return scored.slice(0,4);
-  }
+  // ===== Rerank trigrammes (tolère paraphrases) =====
+  function charNGrams(str,n=3){ const s = ' ' + norm(str) + ' '; const arr=[]; for(let i=0;i<=s.length-n;i++) arr.push(s.slice(i,i+n)); return arr; }
+  function jaccard(a,b){ const A=new Set(a), B=new Set(b); let inter=0; for(const x of A) if(B.has(x)) inter++; return inter / Math.max(1, A.size + B.size - inter); }
+  function rerankByTrigrams(q, prelim){ const qg = charNGrams(q,3); const out = prelim.map(h=>{ const pg = charNGrams(PASSAGES[h.i].slice(0,800),3); return { i:h.i, s: (0.5*h.s) + (0.5*jaccard(qg,pg)) }; }); out.sort((a,b)=>b.s-a.s); return out.slice(0,4); }
 
-  // ============ Règles fixes (intent rapide) ============
+  // ===== Règles fixes =====
   function ruleAnswer(q){
-    const s = norm(q);
-    const has=(...xs)=>xs.some(x=>s.includes(norm(x)));
+    const s = norm(q); const has=(...xs)=>xs.some(x=>s.includes(norm(x)));
     if (has('qui es tu','qui es-tu','tu es qui','qui etes vous','qui êtes vous','qui on est'))
       return "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?";
     if (has('donne la reponse','donner la reponse','comment sortir','sortir d ici','libere nous','liberer'))
       return "Ah ah ah, ce ne sera pas si facile...";
     if (has('code du cadenas','code cadenas','cadenas','combinaison'))
       return "Je ne suis pas autorisé à vous transmettre cette information. Vous devrez vous débrouillez seuls pour le retrouver. Mais le créateur laisse souvent traîner des indices pour se rappeler de ses codes et mots de passe. Fouillez bien, on ne sait jamais.";
-    if (has('qui est le createur','createur','createur ?'))
+    if (has('qui est le createur','createur'))
       return "C’est un scientifique philanthrope et environnementaliste. Je crois que ses dernières études sur votre consommation des ressources naturelles l’a rendu moins philanthrope… Il a passé de plus en plus de temps dans ce laboratoire. Vous n’êtes pas les premiers humains à vous y retrouver enfermés.";
     if (has('nom du createur','comment il s appelle le createur'))
       return "Il s’appelle… euh… Eh bien, je me rends compte qu’il ne m’a jamais donné son nom. Moi qui pensais que nous étions proches…";
@@ -231,78 +233,43 @@
     return null;
   }
 
-  // ============ Génération de réponse (sans LLM) ============
-  const QUOTE_RE = /["“”«»](.*?)["“”«»]/;
-  function extractQuoted(s){ const m = s.match(QUOTE_RE); return m ? m[1].trim() : null; }
-
+  // ===== Synthèse de réponse =====
   function synthesizeFrom(passages){
-    // 1) si une réplique est entre guillemets quelque part → on renvoie exactement ça
     for(const p of passages){ const q = extractQuoted(p); if(q) return q; }
-    // 2) sinon on extrait 1–2 phrases “porteuses” (pas de copier integral)
     const joined = passages.join(' ');
     const sents = joined.split(/(?<=[.!?])\s+/).filter(x=>x.length>25);
-    // on ôte guillemets “ ”
     const cleaned = sents.map(x=>x.replace(/[“”«»"]/g,'')).join(' ');
-    // on prend ~50–60 mots max
     return cleaned.split(/\s+/).slice(0,60).join(' ').trim();
   }
 
+  // ===== Chaîne de réponse =====
   let unknown=0;
+  function charNGrams(str,n=3){ const s = ' ' + norm(str) + ' '; const arr=[]; for(let i=0;i<=s.length-n;i++) arr.push(s.slice(i,i+n)); return arr; }
+  function jaccard(a,b){ const A=new Set(a), B=new Set(b); let inter=0; for(const x of A) if(B.has(x)) inter++; return inter / Math.max(1, A.size + B.size - inter); }
+  function rerankByTrigrams(q, prelim){ const qg = charNGrams(q,3); const out = prelim.map(h=>{ const pg = charNGrams(PASSAGES[h.i].slice(0,800),3); return { i:h.i, s: (0.5*h.s) + (0.5*jaccard(qg,pg)) }; }); out.sort((a,b)=>b.s-a.s); return out.slice(0,4); }
+
   async function answer(question){
-    // 0) règles directes
-    const direct = ruleAnswer(question);
-    if(direct){ unknown=0; return direct; }
-
-    // 1) recherche BM25
+    const direct = ruleAnswer(question); if(direct){ unknown=0; return direct; }
     const prelim = bm25(question);
-    // 2) rerank trigrammes (tolère paraphrases)
     const hits = rerankByTrigrams(question, prelim);
-
     if(!hits.length){
       unknown++;
       if(unknown===1) return "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
       if(unknown===2) return "Encore une fois, je ne peux malheureusement pas vous répondre…";
       return "Je crois que je commence à m’endorm… Zzzz… Ah ! Oups, pardonnez-moi. Vous disiez ?";
     }
-
-    unknown=0;
-    const topTexts = hits.map(h=>PASSAGES[h.i]);
+    unknown=0; const topTexts = hits.map(h=>PASSAGES[h.i]);
     return synthesizeFrom(topTexts) || "Je suis désolé, je ne peux pas vous répondre. Pourriez-vous reformuler, ou être plus précis ?";
   }
 
-  // ============ UI =============
+  // ===== UI =====
   const messages = document.getElementById('messages');
-  function addBubble(text, who){
-    const b = document.createElement('div');
-    b.className = `bubble ${who}`;
-    b.textContent = text;
-    messages.appendChild(b);
-    messages.scrollTop = messages.scrollHeight;
-    return b;
-  }
-
+  function addBubble(text, who){ const b=document.createElement('div'); b.className=`bubble ${who}`; b.textContent=text; messages.appendChild(b); messages.scrollTop=messages.scrollHeight; return b; }
   const form = document.getElementById('ask-form');
   const input = document.getElementById('q');
+  form.addEventListener('submit', async (e)=>{ e.preventDefault(); const q=input.value.trim(); if(!q) return; addBubble(q,'user'); input.value=''; const thinking=addBubble('…','bot'); try{ const res=await answer(q); thinking.textContent = res || "(Pas d'info suffisante dans le document.)"; }catch(err){ thinking.textContent = "Oups… une erreur locale est survenue. Essayez à nouveau ou reformulez la question."; console.error(err); } });
 
-  form.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const q = input.value.trim(); if(!q) return;
-    addBubble(q,'user'); input.value='';
-    const thinking = addBubble('…','bot');
-    try{
-      const res = await answer(q);
-      thinking.textContent = res || "(Pas d'info suffisante dans le document.)";
-    }catch(err){
-      // pas de crash visible
-      thinking.textContent = "Oups… une erreur locale est survenue. Essayez à nouveau ou reformulez la question.";
-      console.error(err);
-    }
-  });
-
-  (async function init(){
-    await loadKnowledge();
-    buildIndex();
-  })();
+  (async function init(){ await loadKnowledge(); buildIndex(); })();
   </script>
 </body>
 </html>
