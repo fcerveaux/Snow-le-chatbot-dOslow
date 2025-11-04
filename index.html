@@ -184,6 +184,98 @@
     const s = norm(q); const has=(...xs)=>xs.some(x=>s.includes(norm(x)));
     const hasRe = (re) => re.test(s);
 
+    // ===== Règles fixes =====
+function ruleAnswer(q){
+  const s = norm(q);
+  const has=(...xs)=>xs.some(x=>s.includes(norm(x)));
+  const hasRe=(re)=>re.test(s);
+
+  // 🚨 Vulgarité → rappel de politesse
+  const badWords = [
+    'merde','put1','putain','fait chier','fais chier','chie','chier','totoche',
+    'fuck','shit','fck','langet','languete','langue te','ton monmon','tser',
+    'va chier',' con ',' con','conne','salop','salope','saloperie','salaud',
+    'connard','enfoire','encule'
+  ];
+  if (badWords.some(w => s.includes(norm(w))))
+    return "Merci de rester poli. Je répondrai ensuite à vos questions.";
+
+  // 👋 Salutations
+  if (has('bonjour','salut','coucou','bonsoir','hello','hi'))
+    return "Bonjour ! C'est une bien belle journée, n'est-ce pas ? Quel plaisir de vous rencontrer.";
+
+  // 👋 Au revoir / départ
+  if (has("je m en vais","je m'en vais",'au revoir','a plus','à plus','a bientot','à bientôt',
+          'bye','ciao','je pars','on y va','bonne nuit'))
+    return "Ce fut un plaisir de discuter avec vous !";
+
+  // 🔎 Questions math spécifiques (x / y)
+  if (hasRe(/\b(resultat|solution|valeur)\s+de\s+x\b/) ||
+      hasRe(/\bquel(le)?\s+est\s+(le\s+)?(resultat|valeur)\s+de\s+x\b/))
+    return "Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien…";
+
+  if (hasRe(/\b(resultat|solution|valeur)\s+de\s+y\b/) ||
+      hasRe(/\bquel(le)?\s+est\s+(le\s+)?(resultat|valeur)\s+de\s+y\b/))
+    return "Allons allons, une équation du second degré, c’est élémentaire ! Je vais vous aider : on effectue d’abord les opérations entre parenthèses, puis les multiplications et divisions dans leur ordre d’écriture, et enfin les additions et soustractions. Je vous en prie !";
+
+  // Variantes plus libres
+  if (has('resoudre x','résoudre x','calculer x','valeur de x'))
+    return "Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien…";
+  if (has('resoudre y','résoudre y','calculer y','valeur de y'))
+    return "Allons allons, une équation du second degré, c’est élémentaire ! Je vais vous aider : on effectue d’abord les opérations entre parenthèses, puis les multiplications et divisions dans leur ordre d’écriture, et enfin les additions et soustractions. Je vous en prie !";
+
+  // Intentions générales (déjà présentes)
+  if (has('qui es tu','qui es-tu','tu es qui','qui etes vous','qui êtes vous','qui on est'))
+    return "Je suis le ChatBot d'OSLOW, pour vous servir ! Vous pouvez m’appeler Snow. Comment puis-je vous être utile ?";
+  if (has('donne la reponse','donner la reponse','comment sortir','sortir d ici','libere nous','liberer'))
+    return "Ah ah ah, ce ne sera pas si facile...";
+  if (has('code du cadenas','code cadenas','cadenas','combinaison'))
+    return "Je ne suis pas autorisé à vous transmettre cette information. Vous devrez vous débrouillez seuls pour le retrouver. Mais le créateur laisse souvent traîner des indices pour se rappeler de ses codes et mots de passe. Fouillez bien, on ne sait jamais.";
+  if (has('qui est le createur','createur'))
+    return "C’est un scientifique philanthrope et environnementaliste. Je crois que ses dernières études sur votre consommation des ressources naturelles l’a rendu moins philanthrope… Il a passé de plus en plus de temps dans ce laboratoire. Vous n’êtes pas les premiers humains à vous y retrouver enfermés.";
+  if (has('nom du createur','comment il s appelle le createur'))
+    return "Il s’appelle… euh… Eh bien, je me rends compte qu’il ne m’a jamais donné son nom. Moi qui pensais que nous étions proches…";
+  if (has('ou est la cle','ou est la clé','trouver la cle','ou se trouve la cle'))
+    return "Voilà une question que vous les humains posez souvent. Je ne sais pas ce que vous faites de vos clés… Je suis limité dans mes recherches, je ne suis qu’une tablette. Je ne vois même pas mon dos…";
+  if (has('faire sa part','ma part','notre part'))
+    return "On doit tous faire notre part du travail. C’est comme ça qu’à la fin, on obtient un résultat complet et satisfaisant (et souvent très utile). Je suis certain que vous trouverez votre part quelque part. Soyez organisés : commencez par ce qu’il y a sous votre nez !";
+  if (has('qr code ne fonctionne pas','qr code marche pas','qr code bloque'))
+    return "Tous les QR codes ont été vérifiés : merci de réessayer.";
+  if (has('pix','plateforme pix','site pix'))
+    return "PIX est un service public en ligne permettant aux utilisateurs de développer leurs compétences numériques, de les évaluer et d’obtenir une certification. Vous devriez essayer !";
+  if (has('video du createur','vidéo du créateur'))
+    return "Le créateur voulait vous expliquer pourquoi il vous a amenés ici. C’est un homme bon, n’est-ce pas ?";
+  if (has('premier chiffre','1er chiffre'))
+    return "Vous cherchez comment commencer, c’est bien ça ? Pour commencer, il vaut toujours mieux partir du début, comprendre ses origines, savoir d’où l’on vient… Qui pourrait vous renseigner mieux que moi sur ce que vous faites là ?";
+  if (has('deuxieme chiffre','2e chiffre'))
+    return "Ah ah ah, je vois que le créateur vous donne du fil à retordre… J’espère qu’il vous facilitera un peu la tâche de temps en temps.";
+  if (has('troisieme chiffre','3e chiffre'))
+    return "Je suis sûr que le créateur vous aurez subtilement indiqué ce qu’il faut faire pour franchir cette troisième étape… Observez bien les éléments dont vous disposez.";
+  if (has('quatrieme chiffre','4e chiffre'))
+    return "Pour finir, il est toujours intéressant de bénéficier d’un feedback. En avez-vous eu un lors de votre progression ?";
+  if (has('lampe uv','ultraviolet','uv'))
+    return "Oh, une lampe ! Elle éclaire d’une couleur bien étrange. Violet… Ultraviolet… UV… Invisible…";
+  if (has('filtre','lunette filtree','transparent colore','feuille coloree','film colore'))
+    return "Voilà un outil original ! Un jour, j’ai entendu le créateur raconter que quand il était enfant, il aimait regarder le monde en regardant à travers.";
+  if (has('image bizarre','code barre','lettres tordues','formes tordues','noire et blanche','blanche et noire'))
+    return "Je ne crois pas avoir les bons yeux pour lire ce qui y est écrit. Vous, au moins, vous pouvez mettre des lunettes ou déplacer la feuille devant vos yeux…";
+  if (has('taquin','puzzle case manquante','case en moins'))
+    return "Le taquin ? Quel jeu amusant : reconstituer une image en n’étant pas libre de ses mouvements… Je ne comprends pas toujours ce que les humains appellent amusement…";
+  if (has('tangram','formes geometriques'))
+    return "Aaah, le tangramme… Un classique des tests psychotechniques ! Retrouverez-vous comment reconstituer le carré initial… ?";
+  if (has('qr code sur la table','document nuage','nuage des mots','nuage'))
+    return "C’est un beau gâteau. Combien pensez-vous qu’il contient de parts ?";
+  if (has('learningapps','jeu grace a un qr code'))
+    return "LearningApps est une application qui permet de créer une activité pédagogique ludique sous différents formats. L’enseignant peut programmer le décor, les questions, les réponses, et même un feedback. Le vôtre disait quoi ?";
+  if (has('merci','thanks','thx'))
+    return "Quel plaisir de vous accompagner dans votre quête !";
+  if (has('recherche internet','chercher sur internet','google','faire une recherche'))
+    return "Internet est un réseau tellement immense… Il serait bien cruel de vous y envoyer : vous vous perdriez.";
+
+  return null;
+}
+
+
 // 🔎 Questions math spécifiques (x / y)
 if (hasRe(/\b(resultat|solution|valeur)\s+de\s+x\b/) || hasRe(/\bquel(le)?\s+est\s+(le\s+)?(resultat|valeur)\s+de\s+x\b/)) {
   return "Allons allons, une équation du second degré, c’est élémentaire ! Lisez bien…";
